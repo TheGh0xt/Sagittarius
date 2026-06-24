@@ -27,6 +27,11 @@ The Polymarket MCP Server is designed as an independent, stateless microservice 
 * **Language:** Go (using `github.com/modelcontextprotocol/go-sdk/mcp`).
 * **Concurrency:** Thread-safe connection pools; must support parallel non-blocking tool execution using async/await patterns.
 * **Error Handling:** Standardized JSON-RPC 2.0 error codes (`-32602` for Invalid Params, `-32603` for Internal Server Error).
+* **Priority Polymarket API Endpoints:** 
+  * [Gamma API](https://gamma-api.polymarket.com) -> Markets, events, tags, series, comments, sports, search, and public profiles. This is the primary API for discovering and browsing market data.
+  * [Data API](https://data-api.polymarket.com) -> User positions, trades, activity, holder data, open interest, leaderboards, and builder analytics.
+  * [Clob API](https://clob-api.polymarket.com) -> Orderbook data, pricing, midpoints, spreads, and price history. Also handles order placement, cancellation, and other trading operations.
+  * X API
 
 ---
 
