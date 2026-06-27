@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/TheGh0xt/Sagittarius/internal/domain/polymarket"
 )
 
 const (
@@ -26,7 +28,7 @@ type Client struct {
 	slg *slog.Logger
 }
 
-func NewClient(slg *slog.Logger) *Client {
+func NewClient(slg *slog.Logger) polymarket.EventProvider {
 	return &Client{
 		c: http.Client{
 			Timeout: time.Second * 30,

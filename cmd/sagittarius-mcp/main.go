@@ -3,73 +3,87 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
-	"net/http"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/TheGh0xt/Sagittarius/internal/mcp"
+	pmApp "github.com/TheGh0xt/Sagittarius/internal/application/polymarket"
+	"github.com/TheGh0xt/Sagittarius/internal/infrastructure/polymarket"
+
+	smcp "github.com/TheGh0xt/Sagittarius/internal/interface/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+const (
+	NAME    = "Sagittarius MCP Server"
+	VERSION = "1.0.0"
+)
+
+var (
+	transportType = flag.String("transport", "http", "Transport type to use (stdio, sse or http)")
+	port          = flag.String("port", "8080", "Port to listen on when using sse transport")
 )
 
 func main() {
-	// Set up flags
-	transportType := flag.String("transport", "stdio", "Transport type to use (stdio or sse)")
-	port := flag.Int("port", 8080, "Port to listen on when using sse transport")
 	flag.Parse()
 
-	// Redirect standard log output to stderr to prevent corrupting stdio transport
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+
 	log.SetOutput(os.Stderr)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Handle signals for graceful shutdown
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		log.Println("Shutting down...")
-		cancel()
-	}()
+	handleSignals(cancel)
 
-	// Start server
-	server := mcp.NewServer()
+	ms := mcp.NewServer(
+		&mcp.Implementation{
+			Name:    NAME,
+			Version: VERSION,
+		},
+		&mcp.ServerOptions{
+			Logger: logger,
+		},
+	)
+
+	ep := polymarket.NewClient(logger)
+	pSvc := pmApp.NewPmService(ep, logger)
+	server := smcp.NewServer(ms, pSvc, logger)
+
+	var err error
 
 	switch *transportType {
 	case "stdio":
-		log.Println("Starting Sagittarius MCP Server in stdio mode...")
-		if err := server.RunStdio(ctx); err != nil {
-			log.Fatalf("Server exit error: %v", err)
-		}
+		err = server.RunStdio(ctx)
+
+	case "http":
+		err = server.RunHTTP(ctx, *port)
+
 	case "sse":
-		log.Printf("Starting Sagittarius MCP Server in SSE mode on port %d...\n", *port)
-		mux := http.NewServeMux()
-		
-		// Mount SSE handler at /sse and /message (internally handled by SSEHandler)
-		handler := server.GetSSEHandler()
-		mux.Handle("/sse", handler)
-		mux.Handle("/message", handler)
+		err = server.RunSSE(ctx, *port)
 
-		httpServer := &http.Server{
-			Addr:    fmt.Sprintf(":%d", *port),
-			Handler: mux,
-		}
-
-		go func() {
-			if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				log.Fatalf("HTTP server error: %v", err)
-			}
-		}()
-
-		// Wait for context cancellation to shutdown HTTP server
-		<-ctx.Done()
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5)
-		defer shutdownCancel()
-		_ = httpServer.Shutdown(shutdownCtx)
-		log.Println("SSE server stopped.")
 	default:
-		log.Fatalf("Unknown transport type: %s", *transportType)
+		log.Fatalf("unknown transport %q", *transportType)
 	}
+
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+// handleSignals listens for shutdown signals and cancels the context when received.
+func handleSignals(cancel context.CancelFunc) {
+	sigChan := make(chan os.Signal, 1)
+
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		log.Println("Received shutdown signal...")
+		cancel()
+	}()
 }

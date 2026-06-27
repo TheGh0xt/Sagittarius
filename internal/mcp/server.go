@@ -1,12 +1,12 @@
 package mcp
 
+/*
 import (
 	"context"
 	"net/http"
 	"time"
 
-	"github.com/TheGh0xt/Sagittarius/internal/polymarket"
-	"github.com/TheGh0xt/Sagittarius/internal/shared"
+	"github.com/TheGh0xt/Sagittarius/internal/infrastructure/polymarket"
 	"github.com/TheGh0xt/Sagittarius/internal/signal"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -19,7 +19,7 @@ type Server struct {
 
 func NewServer() *Server {
 	// Initialize Polymarket client with 10 requests per second rate limit and 30 seconds cache TTL
-	client := polymarket.NewClient(10, 30*time.Second)
+	client := polymarket.NewClient()
 	engine := signal.NewEngine(client)
 
 	impl := &mcp.Implementation{
@@ -219,3 +219,4 @@ func (s *Server) registerTools() {
 		}, res, err
 	})
 }
+*/
