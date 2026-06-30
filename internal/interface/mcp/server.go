@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"time"
@@ -34,8 +35,12 @@ func (s *Server) GetMCPServer() *mcp.Server {
 }
 
 func (s *Server) healthcheck(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("ok"))
+
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status": "ok",
+	})
 }
 
 func (s *Server) RunStdio(ctx context.Context) error {
@@ -46,13 +51,14 @@ func (s *Server) RunStdio(ctx context.Context) error {
 }
 
 func (s *Server) GetSSEHandler() http.Handler {
-
+	s.slg.Info("Sagittarius", "state", "Getting SSE handler...")
 	return mcp.NewSSEHandler(func(req *http.Request) *mcp.Server {
 		return s.ms
 	}, nil)
 }
 
 func (s *Server) GetHTTPHandler(logger *slog.Logger) http.Handler {
+	s.slg.Info("Sagittarius", "state", "Getting HTTP handler...")
 	return mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		return s.ms
 	}, &mcp.StreamableHTTPOptions{

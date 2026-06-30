@@ -13,14 +13,21 @@ import (
 	"github.com/TheGh0xt/Sagittarius/internal/domain/polymarket"
 )
 
+type handlers string
+
+const (
+	GammaHandler handlers = "gamma"
+	DataHandler  handlers = "data"
+)
+
 const (
 	GammaBaseURL = "https://gamma-api.polymarket.com"
 	DataBaseURL  = "https://data-api.polymarket.com"
 )
 
 type pmErr struct {
-	ErrType    string `json:"error"`
-	ErrMessage string `json:"message"`
+	ErrType    any `json:"error"`
+	ErrMessage any `json:"message"`
 }
 
 type Client struct {
@@ -48,11 +55,19 @@ func checkRespStatusCode(resp *http.Response) error {
 	return nil
 }
 
-func getUrl(baseURL, path string) string {
-	return fmt.Sprintf("%s%s", baseURL, path)
+func getUrl(handler handlers, path string) string {
+	switch handler {
+	case GammaHandler:
+		return fmt.Sprintf("%s/events/slug/%s", GammaBaseURL, path)
+	case DataHandler:
+		return fmt.Sprintf("%s/%s", DataBaseURL, path)
+	default:
+		return ""
+	}
 }
 
 func makePmGetRequest[T any](ctx context.Context, cl *Client, url string) (*T, error) {
+	slog.Info("url string", "url", url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		cl.slg.Error("failed to create request", "err", err)
@@ -66,7 +81,7 @@ func makePmGetRequest[T any](ctx context.Context, cl *Client, url string) (*T, e
 	defer resp.Body.Close()
 
 	if err := checkRespStatusCode(resp); err != nil {
-		cl.slg.Error("failed to check response status", "err", err)
+		cl.slg.Error("failed response status check", "err", err)
 		return nil, err
 	}
 
@@ -98,7 +113,7 @@ func makePmPostRequest[T any](ctx context.Context, cl *Client, url string, body 
 	defer resp.Body.Close()
 
 	if err := checkRespStatusCode(resp); err != nil {
-		cl.slg.Error("failed to check response status", "err", err)
+		cl.slg.Error("failed response status check", "err", err)
 		return nil, err
 	}
 

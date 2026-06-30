@@ -16,7 +16,7 @@ const (
 )
 
 type Client struct {
-	httpClient *http.Client
+	httpClient  *http.Client
 	rateLimiter <-chan time.Time
 	cache       sync.Map
 	cacheTTL    time.Duration
