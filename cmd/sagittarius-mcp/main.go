@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -29,11 +28,10 @@ var (
 func main() {
 	flag.Parse()
 
+	// return back to stderr
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))
-
-	log.SetOutput(os.Stderr)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -67,11 +65,11 @@ func main() {
 		err = server.RunSSE(ctx, *port)
 
 	default:
-		log.Fatalf("unknown transport %q", *transportType)
+		slog.Error("unknown transport", "transport", *transportType)
 	}
 
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("server error", "error", err)
 	}
 }
 
@@ -83,7 +81,7 @@ func handleSignals(cancel context.CancelFunc) {
 
 	go func() {
 		<-sigChan
-		log.Println("Received shutdown signal...")
+		slog.Info("Received shutdown signal...")
 		cancel()
 	}()
 }

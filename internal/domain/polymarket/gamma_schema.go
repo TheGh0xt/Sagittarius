@@ -147,8 +147,8 @@ type Event struct {
 		Volume1YrAmm          int       `json:"volume1yrAmm,omitempty"`
 		VolumeAmm             int       `json:"volumeAmm,omitempty"`
 		LiquidityAmm          int       `json:"liquidityAmm,omitempty"`
-		OneHourPriceChange    int       `json:"oneHourPriceChange,omitempty"`
-		OneYearPriceChange    int       `json:"oneYearPriceChange,omitempty"`
+		OneHourPriceChange    float64   `json:"oneHourPriceChange,omitempty"`
+		OneYearPriceChange    float64   `json:"oneYearPriceChange,omitempty"`
 		ClosedTime            string    `json:"closedTime,omitempty"`
 		UmaEndDate            time.Time `json:"umaEndDate"`
 		UmaResolutionStatus   string    `json:"umaResolutionStatus,omitempty"`
