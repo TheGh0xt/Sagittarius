@@ -26,7 +26,9 @@ The pre-push hook in `scripts/hooks/pre-push` blocks direct pushes to `main`. In
 
 ## Architecture
 
-Sagittarius is Layer 1 of a 5-layer Prediction Market Intelligence Engine (PMIE). It is a stateless Go MCP server that exposes Polymarket data as typed tools to an LLM reasoning agent upstream.
+Sagittarius is the permanent home of **Layers 1 and 2** of the 5-layer Prediction Market Intelligence Engine (PMIE). It is a stateless Go MCP server that exposes Polymarket data as typed tools to an LLM reasoning agent upstream (Cygnus, a separate Python/ADK repo housing Layers 3–5).
+
+Layers 1 and 2 share this repo deliberately: both are deterministic, LLM-free, and on the hot path, so signal detection must be an in-process Go library call — never a network/MCP hop. The Signal Engine must also sit *between* the raw Polymarket fetch and the MCP surface, because raw trade/order-book data must never be exposed to the LLM; its scored signals get exposed as additional MCP tools (e.g. `get_whale_activity`) for Cygnus. The MCP boundary is the only seam between the two repos — Sagittarius never writes to Cygnus's memory store directly. Do not split Layer 2 into its own repo or service.
 
 ### Request flow (active code path)
 
@@ -53,7 +55,7 @@ MCP Client
 
 ### Prototype packages (not wired to main)
 
-`internal/polymarket/`, `internal/mcp/`, and `internal/signal/` are the original Phase 1 prototype. `internal/mcp/server.go` is entirely commented out. `internal/signal/engine.go` (whale detection, orderbook skew, volume spikes) still imports `internal/polymarket/` and is the planned Layer 2 Signal Engine — not yet integrated into the active server.
+`internal/polymarket/`, `internal/mcp/`, and `internal/signal/` are the original Phase 1 prototype. `internal/mcp/server.go` is entirely commented out. `internal/signal/engine.go` (whale detection, orderbook skew, volume spikes) is the Layer 2 Signal Engine — it lives in this repo permanently, but wiring it in means **porting it onto the clean-architecture stack** (domain types in `internal/domain/`, data access via `internal/infrastructure/`, exposed through `internal/interface/mcp/tools/`), not keeping its prototype import of `internal/polymarket/`.
 
 When adding new tools, follow the clean architecture path: add domain types in `internal/domain/`, infrastructure calls in `internal/infrastructure/`, service logic in `internal/application/`, handlers in `internal/interface/mcp/tools/`, and register in `internal/interface/mcp/register.go`.
 

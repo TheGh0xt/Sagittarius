@@ -1,8 +1,8 @@
-go.mod
-go.sum
 /bin
-/docs
 /.agents
+/.claude
 
-# exceptions
-!docs_MCP_SERVER_SPEC.md
+# docs are local-only, except the tracked canonical specs
+/docs/*
+!/docs/docs_MCP_SERVER_SPEC.md
+!/docs/docs_PROJECT_PROPOSAL.md
