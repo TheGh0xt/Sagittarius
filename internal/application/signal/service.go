@@ -81,6 +81,10 @@ func (s *signalService) DetectWhaleActivity(ctx context.Context, req WhaleActivi
 		}
 
 		events := signal.ComputeWhaleEvents(trades, threshold)
+		if events == nil {
+			// Serialize as [] rather than null for tool consumers.
+			events = []signal.WhaleEvent{}
+		}
 
 		var total, buyUSD float64
 		for _, e := range events {

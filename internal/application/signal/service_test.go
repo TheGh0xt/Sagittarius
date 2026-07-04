@@ -129,6 +129,9 @@ func TestDetectWhaleActivityNoWhales(t *testing.T) {
 	if got := report.Markets[0].BuySellRatio; got != "0:0" {
 		t.Errorf("buy/sell ratio with no whales: want 0:0, got %s", got)
 	}
+	if report.Markets[0].WhaleEvents == nil {
+		t.Error("whale_events must serialize as [] (empty slice), not null")
+	}
 }
 
 func TestDetectWhaleActivitySkipsFailingMarkets(t *testing.T) {
