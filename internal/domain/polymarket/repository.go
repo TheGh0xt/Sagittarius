@@ -6,4 +6,5 @@ import (
 
 type EventProvider interface {
 	FetchEventBySlug(ctx context.Context, slug string) (*Event, error)
+	FetchEventByID(ctx context.Context, id string) (*Event, error)
 }
