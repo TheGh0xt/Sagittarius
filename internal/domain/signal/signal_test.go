@@ -13,8 +13,8 @@ func almostEqual(a, b float64) bool {
 
 func TestComputeWhaleEvents(t *testing.T) {
 	trades := []polymarket.Trade{
-		{Wallet: "0xa", Side: "BUY", Price: 0.50, Size: 20000, Timestamp: 1751600000},  // $10k — below
-		{Wallet: "0xb", Side: "BUY", Price: 0.50, Size: 50000, Timestamp: 1751600100},  // $25k — at threshold
+		{Wallet: "0xa", Side: "BUY", Price: 0.50, Size: 20000, Timestamp: 1751600000},   // $10k — below
+		{Wallet: "0xb", Side: "BUY", Price: 0.50, Size: 50000, Timestamp: 1751600100},   // $25k — at threshold
 		{Wallet: "0xc", Side: "SELL", Price: 0.60, Size: 100000, Timestamp: 1751600200}, // $60k — above
 	}
 

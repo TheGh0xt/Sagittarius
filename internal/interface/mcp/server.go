@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/TheGh0xt/Sagittarius/internal/application/polymarket"
+	"github.com/TheGh0xt/Sagittarius/internal/application/signal"
 	handler "github.com/TheGh0xt/Sagittarius/internal/interface/mcp/tools"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -15,13 +16,15 @@ import (
 type Server struct {
 	ms  *mcp.Server
 	ph  *handler.Pmhandler
+	sh  *handler.SignalHandler
 	slg *slog.Logger
 }
 
-func NewServer(ms *mcp.Server, ps polymarket.Service, slg *slog.Logger) *Server {
+func NewServer(ms *mcp.Server, ps polymarket.Service, ss signal.Service, slg *slog.Logger) *Server {
 	s := &Server{
 		ms:  ms,
 		ph:  handler.NewPmhandler(ps, slg),
+		sh:  handler.NewSignalHandler(ss, slg),
 		slg: slg,
 	}
 

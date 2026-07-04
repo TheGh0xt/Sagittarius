@@ -29,4 +29,20 @@ func (s *Server) RegisterPmiTools() {
 		},
 		s.ph.FetchEventByID,
 	)
+
+	mcp.AddTool(
+		s.ms, &mcp.Tool{
+			Name:        "get_whale_activity",
+			Description: "Detect whale-sized trades (notional >= usd_threshold) for every market in a Polymarket event, aggregated per market with buy/sell ratio",
+		},
+		s.sh.DetectWhaleActivity,
+	)
+
+	mcp.AddTool(
+		s.ms, &mcp.Tool{
+			Name:        "get_market_snapshot",
+			Description: "Unified deterministic state vector per market of a Polymarket event: implied probability, orderbook skew, volume-spike analysis, whale count",
+		},
+		s.sh.BuildMarketSnapshot,
+	)
 }
