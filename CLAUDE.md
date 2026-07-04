@@ -53,9 +53,9 @@ MCP Client
 | `internal/domain/shared/` | Typed error structs (`ErrInvalidInput`, `ErrInternalServerError`), `MarshalJSON`/`UnmarshalJSON` |
 | `internal/infrastructure/polymarket/` | `Client` implementing `EventProvider`; generic `makePmGetRequest[T]` / `makePmPostRequest[T]` helpers |
 
-### Prototype packages (not wired to main)
+### Signal Engine (Layer 2) — wired in
 
-`internal/polymarket/`, `internal/mcp/`, and `internal/signal/` are the original Phase 1 prototype. `internal/mcp/server.go` is entirely commented out. `internal/signal/engine.go` (whale detection, orderbook skew, volume spikes) is the Layer 2 Signal Engine — it lives in this repo permanently, but wiring it in means **porting it onto the clean-architecture stack** (domain types in `internal/domain/`, data access via `internal/infrastructure/`, exposed through `internal/interface/mcp/tools/`), not keeping its prototype import of `internal/polymarket/`.
+The Signal Engine lives on the clean-architecture stack: pure deterministic math (whale detection, orderbook skew, volume-spike analysis) in `internal/domain/signal/` (no I/O — unit-tested without mocks), orchestration in `internal/application/signal/` (resolves an event slug to per-market condition/token IDs, fetches trades and order books, condenses them into `WhaleActivityReport` / `MarketSnapshotReport`), handlers in `internal/interface/mcp/tools/signal.go`. The original Phase 1 prototype packages (`internal/polymarket/`, `internal/signal/`, `internal/mcp/`) were deleted once this port landed.
 
 When adding new tools, follow the clean architecture path: add domain types in `internal/domain/`, infrastructure calls in `internal/infrastructure/`, service logic in `internal/application/`, handlers in `internal/interface/mcp/tools/`, and register in `internal/interface/mcp/register.go`.
 
@@ -65,17 +65,20 @@ When adding new tools, follow the clean architecture path: add domain types in `
 |---|---|---|
 | Gamma | `https://gamma-api.polymarket.com` | Events, markets, metadata (primary discovery) |
 | Data | `https://data-api.polymarket.com` | Trades, positions, holders |
-| CLOB | `https://clob-api.polymarket.com` | Orderbook snapshots, price history, midpoints |
+| CLOB | `https://clob.polymarket.com` | Orderbook snapshots, price history, midpoints (public `/book`; `/trades` requires L2 auth — use the Data API for trades) |
 
 All public read-only endpoints are unauthenticated. Event slugs are the path segment after `/event/` in Polymarket URLs (e.g. `will-btc-hit-150k`).
 
 ## Currently registered MCP tools
 
-Only one tool is registered in production today (`internal/interface/mcp/register.go`):
+Registered in `internal/interface/mcp/register.go`:
 
-- `get_event_by_slug` — fetches a Gamma event and returns a condensed `EventIntelligenceContext` (summary, markets with probabilities and price changes, tags, metadata context)
+- `get_event_by_slug` `{slug}` — condensed `EventIntelligenceContext` (summary, markets with probabilities and price changes, tags, metadata context)
+- `get_event_by_id` `{id}` — same payload, fetched by numeric Gamma event ID
+- `get_whale_activity` `{slug, usd_threshold?=25000, limit?=100}` — whale-sized trades per market with totals and buy/sell ratio
+- `get_market_snapshot` `{slug}` — per-market state vector: implied probability, orderbook skew, volume-spike analysis, whale count
 
-The full planned tool list (from `docs/docs_MCP_SERVER_SPEC.md`) includes `get_event_by_id`, `search_markets`, `get_market_prices`, `get_market_history`, `get_market_orderbook`, `get_market_trades`, `get_whale_activity`, and `get_market_snapshot`.
+Still planned (from `docs/docs_MCP_SERVER_SPEC.md`): `search_markets`, `get_market_prices`, `get_market_history`, `get_market_orderbook`, `get_market_trades`.
 
 ## Commit Conventions
 - Never add "Co-Authored-By" lines or AI attribution to Git commits.

@@ -43,11 +43,14 @@ See [`docs/docs_PROJECT_PROPOSAL.md`](./docs/docs_PROJECT_PROPOSAL.md) for the f
 
 ## What Sagittarius does today
 
-Sagittarius runs as an MCP server over **stdio**, **Streamable HTTP**, or **SSE**, and currently exposes one production tool:
+Sagittarius runs as an MCP server over **stdio**, **Streamable HTTP**, or **SSE**, and currently exposes four production tools:
 
 - **`get_event_by_slug`** — given a Polymarket event slug (the path segment after `/event/` in a Polymarket URL, e.g. `will-btc-hit-150k`), fetches the event from the Gamma API and returns a condensed `EventIntelligenceContext`: summary metrics (volume, liquidity, open interest), per-market analysis (implied probability, 1h/24h/7d/30d price change, best bid/ask, spread), tags, and event context.
+- **`get_event_by_id`** — the same condensed payload, fetched by numeric Gamma event ID.
+- **`get_whale_activity`** — Signal Engine tool: scans recent trades for every market in an event and returns only whale-sized executions (notional ≥ `usd_threshold`, default $25k), aggregated per market with total whale value and a buy/sell ratio.
+- **`get_market_snapshot`** — Signal Engine tool: a unified deterministic state vector per market — implied probability, dollar-weighted orderbook skew, volume-spike analysis vs. baseline, and whale count.
 
-This keeps a full, deeply-nested Gamma API payload from ever reaching the LLM — the tool handler returns only the fields relevant to reasoning about market movement.
+This keeps full, deeply-nested API payloads and raw trade streams from ever reaching the LLM — every tool returns only condensed, semantically dense fields relevant to reasoning about market movement.
 
 ## Architecture
 
@@ -83,14 +86,15 @@ internal/infrastructure/polymarket/— HTTP client → Polymarket Gamma/Data/CLO
 
 Each layer only knows about the one below it via interfaces (e.g. the application layer depends on `domain.EventProvider`, never on the concrete infrastructure `Client`), so the HTTP client, transport, and reasoning layers can all evolve independently.
 
-### Prototype packages (not wired to `main`)
+### The Signal Engine (Layer 2)
 
-`internal/polymarket/`, `internal/mcp/`, and `internal/signal/` are an earlier Phase 1 prototype kept in-tree for reference:
+The deterministic Signal Engine is fully integrated on the clean-architecture stack:
 
-- `internal/mcp/server.go` — entirely commented out.
-- `internal/signal/engine.go` — a deterministic Layer 2 Signal Engine (whale detection, order book skew, volume spike analysis) that still imports the old `internal/polymarket/` client. It is functional and unit-tested (`internal/signal/engine_test.go`) but not yet integrated into the active server built from `internal/interface/...`.
+- `internal/domain/signal/` — pure math (whale detection, order-book skew, volume-spike analysis); no I/O, unit-tested without mocks.
+- `internal/application/signal/` — resolves an event slug to per-market condition/token IDs, fetches trades (Data API) and order books (CLOB), and condenses them into `WhaleActivityReport` / `MarketSnapshotReport` payloads.
+- `internal/interface/mcp/tools/signal.go` — the `get_whale_activity` and `get_market_snapshot` tool handlers.
 
-When extending Sagittarius, new work should follow the clean-architecture path (`domain` → `infrastructure` → `application` → `interface/mcp/tools` → register in `internal/interface/mcp/register.go`), not the prototype packages.
+When extending Sagittarius, follow the clean-architecture path (`domain` → `infrastructure` → `application` → `interface/mcp/tools` → register in `internal/interface/mcp/register.go`).
 
 ## Polymarket APIs
 
@@ -98,7 +102,7 @@ When extending Sagittarius, new work should follow the clean-architecture path (
 |---|---|---|
 | Gamma | `https://gamma-api.polymarket.com` | Events, markets, metadata (primary discovery) |
 | Data | `https://data-api.polymarket.com` | Trades, positions, holders |
-| CLOB | `https://clob-api.polymarket.com` | Orderbook snapshots, price history, midpoints |
+| CLOB | `https://clob.polymarket.com` | Orderbook snapshots, price history, midpoints (public `/book`; `/trades` requires L2 auth — trades come from the Data API) |
 
 All public read-only endpoints used here are unauthenticated — no API key is required to run this server.
 
@@ -184,7 +188,7 @@ which returns an `EventIntelligenceContext`:
 
 ## Contributing / next steps
 
-The full planned tool surface (from [`docs/docs_MCP_SERVER_SPEC.md`](./docs/docs_MCP_SERVER_SPEC.md)) includes `get_event_by_id`, `search_markets`, `get_market_prices`, `get_market_history`, `get_market_orderbook`, `get_market_trades`, `get_whale_activity`, and `get_market_snapshot`. See [`docs/implementation_plan.md`](./docs/implementation_plan.md) for the original Phase 1 build-out plan.
+Remaining planned tools (from [`docs/docs_MCP_SERVER_SPEC.md`](./docs/docs_MCP_SERVER_SPEC.md)): `search_markets`, `get_market_prices`, `get_market_history`, `get_market_orderbook`, and `get_market_trades`. (`get_event_by_id`, `get_whale_activity`, and `get_market_snapshot` are implemented.)
 
 ### Repo conventions
 
