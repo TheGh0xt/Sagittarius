@@ -67,7 +67,7 @@ type Event struct {
 		QuestionID                   string    `json:"questionID"`
 		EnableOrderBook              bool      `json:"enableOrderBook"`
 		OrderPriceMinTickSize        float64   `json:"orderPriceMinTickSize"`
-		OrderMinSize                 int       `json:"orderMinSize"`
+		OrderMinSize                 float64   `json:"orderMinSize"`
 		VolumeNum                    float64   `json:"volumeNum"`
 		LiquidityNum                 float64   `json:"liquidityNum,omitempty"`
 		EndDateIso                   string    `json:"endDateIso"`
@@ -87,8 +87,8 @@ type Event struct {
 		Volume1YrClob                float64   `json:"volume1yrClob,omitempty"`
 		VolumeClob                   float64   `json:"volumeClob"`
 		LiquidityClob                float64   `json:"liquidityClob,omitempty"`
-		MakerBaseFee                 int       `json:"makerBaseFee"`
-		TakerBaseFee                 int       `json:"takerBaseFee"`
+		MakerBaseFee                 float64   `json:"makerBaseFee"`
+		TakerBaseFee                 float64   `json:"takerBaseFee"`
 		CustomLiveness               int       `json:"customLiveness"`
 		AcceptingOrders              bool      `json:"acceptingOrders"`
 		NegRisk                      bool      `json:"negRisk"`
@@ -102,15 +102,15 @@ type Event struct {
 		PagerDutyNotificationEnabled bool      `json:"pagerDutyNotificationEnabled"`
 		Approved                     bool      `json:"approved"`
 		ClobRewards                  []struct {
-			ID               string `json:"id"`
-			ConditionID      string `json:"conditionId"`
-			AssetAddress     string `json:"assetAddress"`
-			RewardsAmount    int    `json:"rewardsAmount"`
-			RewardsDailyRate int    `json:"rewardsDailyRate"`
-			StartDate        string `json:"startDate"`
-			EndDate          string `json:"endDate"`
+			ID               string  `json:"id"`
+			ConditionID      string  `json:"conditionId"`
+			AssetAddress     string  `json:"assetAddress"`
+			RewardsAmount    float64 `json:"rewardsAmount"`
+			RewardsDailyRate float64 `json:"rewardsDailyRate"`
+			StartDate        string  `json:"startDate"`
+			EndDate          string  `json:"endDate"`
 		} `json:"clobRewards,omitempty"`
-		RewardsMinSize        int       `json:"rewardsMinSize"`
+		RewardsMinSize        float64   `json:"rewardsMinSize"`
 		RewardsMaxSpread      float64   `json:"rewardsMaxSpread"`
 		Spread                float64   `json:"spread"`
 		OneWeekPriceChange    float64   `json:"oneWeekPriceChange,omitempty"`
@@ -141,12 +141,12 @@ type Event struct {
 			RebateRate float64 `json:"rebateRate"`
 		} `json:"feeSchedule"`
 		OneDayPriceChange     float64   `json:"oneDayPriceChange,omitempty"`
-		Volume24HrAmm         int       `json:"volume24hrAmm,omitempty"`
-		Volume1WkAmm          int       `json:"volume1wkAmm,omitempty"`
-		Volume1MoAmm          int       `json:"volume1moAmm,omitempty"`
-		Volume1YrAmm          int       `json:"volume1yrAmm,omitempty"`
-		VolumeAmm             int       `json:"volumeAmm,omitempty"`
-		LiquidityAmm          int       `json:"liquidityAmm,omitempty"`
+		Volume24HrAmm         float64   `json:"volume24hrAmm,omitempty"`
+		Volume1WkAmm          float64   `json:"volume1wkAmm,omitempty"`
+		Volume1MoAmm          float64   `json:"volume1moAmm,omitempty"`
+		Volume1YrAmm          float64   `json:"volume1yrAmm,omitempty"`
+		VolumeAmm             float64   `json:"volumeAmm,omitempty"`
+		LiquidityAmm          float64   `json:"liquidityAmm,omitempty"`
 		OneHourPriceChange    float64   `json:"oneHourPriceChange,omitempty"`
 		OneYearPriceChange    float64   `json:"oneYearPriceChange,omitempty"`
 		ClosedTime            string    `json:"closedTime,omitempty"`
