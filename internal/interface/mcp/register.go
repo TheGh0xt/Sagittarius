@@ -21,4 +21,12 @@ func (s *Server) RegisterPmiTools() {
 		},
 		s.ph.FetchEventBySlug,
 	)
+
+	mcp.AddTool(
+		s.ms, &mcp.Tool{
+			Name:        "get_event_by_id",
+			Description: "Get Polymarkets event intelligence by numeric event ID",
+		},
+		s.ph.FetchEventByID,
+	)
 }

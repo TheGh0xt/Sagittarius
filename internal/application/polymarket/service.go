@@ -3,6 +3,7 @@ package polymarket
 import (
 	"context"
 	"log/slog"
+	"strconv"
 
 	"github.com/TheGh0xt/Sagittarius/internal/domain/polymarket"
 	"github.com/TheGh0xt/Sagittarius/internal/domain/shared"
@@ -10,6 +11,7 @@ import (
 
 type Service interface {
 	FetchEventBySlug(ctx context.Context, slug string) (*EventIntelligenceContext, error)
+	FetchEventByID(ctx context.Context, id string) (*EventIntelligenceContext, error)
 }
 
 type pmService struct {
@@ -33,6 +35,22 @@ func (pms *pmService) FetchEventBySlug(ctx context.Context, slug string) (*Event
 	}
 
 	event, err := pms.ep.FetchEventBySlug(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+
+	return BuildEventIntelligenceContext(event), nil
+}
+
+func (pms *pmService) FetchEventByID(ctx context.Context, id string) (*EventIntelligenceContext, error) {
+	if id == "" {
+		return nil, shared.ErrInvalidInput{Field: "event id", Message: "event id cannot be empty"}
+	}
+	if _, err := strconv.Atoi(id); err != nil {
+		return nil, shared.ErrInvalidInput{Field: "event id", Message: "event id must be numeric"}
+	}
+
+	event, err := pms.ep.FetchEventByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}

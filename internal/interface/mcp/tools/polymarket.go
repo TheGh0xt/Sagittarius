@@ -49,3 +49,32 @@ func (h *Pmhandler) FetchEventBySlug(
 		},
 	}, nil, nil
 }
+
+// FetchEventByID fetches an event by its numeric Gamma ID.
+func (h *Pmhandler) FetchEventByID(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	input polymarket.FetchEventByIDRequest,
+) (
+	*mcp.CallToolResult,
+	any,
+	error,
+) {
+	eventIntelCxt, err := h.pmService.FetchEventByID(ctx, input.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	result, err := shared.MarshalJSON(eventIntelCxt)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: string(result),
+			},
+		},
+	}, nil, nil
+}
