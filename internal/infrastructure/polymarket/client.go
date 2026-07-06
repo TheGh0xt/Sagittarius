@@ -8,21 +8,19 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/TheGh0xt/Sagittarius/internal/domain/polymarket"
 )
 
-type handlers string
-
-const (
-	GammaHandler handlers = "gamma"
-	DataHandler  handlers = "data"
-)
-
 const (
 	GammaBaseURL = "https://gamma-api.polymarket.com"
 	DataBaseURL  = "https://data-api.polymarket.com"
+	// ClobBaseURL is the public CLOB host. Note: the spec doc's
+	// clob-api.polymarket.com does not resolve; clob.polymarket.com is the
+	// real public endpoint.
+	ClobBaseURL = "https://clob.polymarket.com"
 )
 
 type pmErr struct {
@@ -33,14 +31,30 @@ type pmErr struct {
 type Client struct {
 	c   http.Client
 	slg *slog.Logger
+
+	baseGammaURL string
+	baseDataURL  string
+	baseClobURL  string
 }
 
-func NewClient(slg *slog.Logger) polymarket.EventProvider {
+// Compile-time checks that Client satisfies the domain provider interfaces.
+var _ polymarket.EventProvider = (*Client)(nil)
+
+func NewClient(slg *slog.Logger) *Client {
+	return NewClientWithBaseURLs(slg, GammaBaseURL, DataBaseURL, ClobBaseURL)
+}
+
+// NewClientWithBaseURLs returns a Client pointed at custom API base URLs.
+// Production code should use NewClient; this exists for httptest-backed tests.
+func NewClientWithBaseURLs(slg *slog.Logger, gammaURL, dataURL, clobURL string) *Client {
 	return &Client{
 		c: http.Client{
 			Timeout: time.Second * 30,
 		},
-		slg: slg,
+		slg:          slg,
+		baseGammaURL: gammaURL,
+		baseDataURL:  dataURL,
+		baseClobURL:  clobURL,
 	}
 }
 
@@ -55,15 +69,12 @@ func checkRespStatusCode(resp *http.Response) error {
 	return nil
 }
 
-func getUrl(handler handlers, path string) string {
-	switch handler {
-	case GammaHandler:
-		return fmt.Sprintf("%s/events/slug/%s", GammaBaseURL, path)
-	case DataHandler:
-		return fmt.Sprintf("%s/%s", DataBaseURL, path)
-	default:
-		return ""
-	}
+func (c *Client) gammaEventBySlugURL(slug string) string {
+	return fmt.Sprintf("%s/events/slug/%s", c.baseGammaURL, url.PathEscape(slug))
+}
+
+func (c *Client) gammaEventByIDURL(id string) string {
+	return fmt.Sprintf("%s/events/%s", c.baseGammaURL, url.PathEscape(id))
 }
 
 func makePmGetRequest[T any](ctx context.Context, cl *Client, url string) (*T, error) {

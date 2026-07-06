@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	pmApp "github.com/TheGh0xt/Sagittarius/internal/application/polymarket"
+	sigApp "github.com/TheGh0xt/Sagittarius/internal/application/signal"
 	"github.com/TheGh0xt/Sagittarius/internal/infrastructure/polymarket"
 
 	smcp "github.com/TheGh0xt/Sagittarius/internal/interface/mcp"
@@ -48,9 +49,10 @@ func main() {
 		},
 	)
 
-	ep := polymarket.NewClient(logger)
-	pSvc := pmApp.NewPmService(ep, logger)
-	server := smcp.NewServer(ms, pSvc, logger)
+	client := polymarket.NewClient(logger)
+	pSvc := pmApp.NewPmService(client, logger)
+	sSvc := sigApp.NewSignalService(client, client, logger)
+	server := smcp.NewServer(ms, pSvc, sSvc, logger)
 
 	var err error
 

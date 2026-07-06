@@ -5,6 +5,10 @@ type (
 		Slug string `json:"slug" binding:"required" jsonschema:"slug of an event in polymarket is the identifier after /event/ in the URL"`
 	}
 
+	FetchEventByIDRequest struct {
+		ID string `json:"id" binding:"required" jsonschema:"numeric Polymarket event ID"`
+	}
+
 	EventIntelligenceContext struct {
 		Event   EventSummary     `json:"event"`
 		Context string           `json:"context"`
