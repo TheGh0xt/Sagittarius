@@ -95,11 +95,16 @@ func (s *Server) RunSSE(ctx context.Context, port string) error {
 func (s *Server) runServer(ctx context.Context, port string, handler http.Handler) error {
 	s.slg.Info("Sagittarius", "state", "Starting server on :"+port, "local addr", "http://localhost:"+port)
 	srv := &http.Server{
-		Addr:         ":" + port,
-		Handler:      handler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:    ":" + port,
+		Handler: handler,
+		// No ReadTimeout/WriteTimeout: MCP responses can outlive any fixed
+		// deadline — SSE streams stay open indefinitely, and tool calls that
+		// fan out per market (e.g. get_market_snapshot on a 30+-market event)
+		// legitimately run past 30s; a WriteTimeout closed those connections
+		// before the handler could respond. ReadHeaderTimeout still guards
+		// against slow-header (slowloris) clients.
+		ReadHeaderTimeout: 15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	errCh := make(chan error, 1)
