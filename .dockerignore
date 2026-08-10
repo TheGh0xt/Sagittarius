@@ -1,0 +1,9 @@
+.git
+.github
+.claude
+bin/
+*.md
+scripts/
+.justfile
+Dockerfile
+.dockerignore
