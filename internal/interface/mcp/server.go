@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/TheGh0xt/Sagittarius/internal/application/polymarket"
@@ -60,13 +61,42 @@ func (s *Server) GetSSEHandler() http.Handler {
 	}, nil)
 }
 
+// behindProxy reports whether this process sits behind a reverse proxy that
+// terminates TLS and forwards to the container over loopback.
+//
+// The MCP SDK rejects any request whose Host header is not a loopback address
+// when the connection arrives on a loopback local address, as DNS rebinding
+// protection. That is the right default for an MCP server on a developer's
+// machine, where the threat is a malicious web page reaching a local service.
+// It is wrong behind a platform proxy: every request then carries the public
+// hostname and is refused with
+//
+//	403 Forbidden: invalid Host header "<host>"
+//
+// which rejects real clients — including Cygnus — while /health keeps working,
+// so the service looks deployed and is entirely unusable.
+//
+// Opt-in rather than automatic: the safe default stays on, and a deployment
+// states explicitly that it sits behind a proxy.
+func behindProxy() bool {
+	return os.Getenv("MCP_BEHIND_PROXY") == "1"
+}
+
 func (s *Server) GetHTTPHandler(logger *slog.Logger) http.Handler {
 	s.slg.Info("Sagittarius", "state", "Getting HTTP handler...")
+	proxied := behindProxy()
+	if proxied {
+		s.slg.Info(
+			"Sagittarius",
+			"state", "MCP_BEHIND_PROXY set; accepting non-loopback Host headers",
+		)
+	}
 	return mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		return s.ms
 	}, &mcp.StreamableHTTPOptions{
-		Logger:         logger,
-		SessionTimeout: time.Minute * 15,
+		Logger:                     logger,
+		SessionTimeout:             time.Minute * 15,
+		DisableLocalhostProtection: proxied,
 	})
 }
 
@@ -95,8 +125,8 @@ func (s *Server) RunSSE(ctx context.Context, port string) error {
 func (s *Server) runServer(ctx context.Context, port string, handler http.Handler) error {
 	s.slg.Info("Sagittarius", "state", "Starting server on :"+port, "local addr", "http://localhost:"+port)
 	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: handler,
+		Addr:              ":" + port,
+		Handler:           handler,
 		ReadHeaderTimeout: 15 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
