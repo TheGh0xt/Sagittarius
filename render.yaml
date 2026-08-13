@@ -1,0 +1,32 @@
+# Render blueprint for Sagittarius (PMIE Layers 1 + 2).
+#
+# Connect this repo in Render's dashboard and it reads this file. No CLI and
+# no billing card required.
+#
+# Sagittarius is a good fit for a free instance: it is stateless, holds no
+# credentials, and every Polymarket endpoint it reads is public and
+# unauthenticated. There is nothing to lose when the instance restarts.
+#
+# Free-tier caveat: the service sleeps after ~15 minutes idle, so the first
+# request after a quiet spell pays a cold start.
+#
+# No dockerCommand here on purpose. The image sets
+#   ENTRYPOINT ["/sagittarius-mcp"]
+#   CMD ["--transport=http", "--port=8080"]
+# so it already starts correctly. Setting dockerCommand would be appended to
+# the entrypoint and produce a duplicated binary path.
+
+services:
+  - type: web
+    name: sagittarius
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      # Render routes external traffic to the port named here. It must match
+      # the --port the image is started with.
+      - key: PORT
+        value: 8080
+    autoDeploy: true
