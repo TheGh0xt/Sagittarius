@@ -29,4 +29,12 @@ services:
       # the --port the image is started with.
       - key: PORT
         value: 8080
+
+      # Render terminates TLS and forwards to the container over loopback, so
+      # every request arrives with the public hostname in its Host header. The
+      # MCP SDK treats that as a DNS rebinding attempt and answers 403 to all
+      # /mcp traffic — including Cygnus — while /health keeps working, which
+      # makes the service look deployed and be entirely unusable.
+      - key: MCP_BEHIND_PROXY
+        value: "1"
     autoDeploy: true
