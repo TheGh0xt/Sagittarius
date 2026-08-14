@@ -32,6 +32,18 @@ func (s *Server) RegisterPmiTools() {
 
 	mcp.AddTool(
 		s.ms, &mcp.Tool{
+			Name: "search_markets",
+			Description: "Find live Polymarket events matching free text, " +
+				"returning candidate slugs ranked by volume. Use this when a " +
+				"request names a subject rather than a market, then call " +
+				"get_event_by_slug with the chosen slug. Only open events are " +
+				"returned; settled ones cannot move again.",
+		},
+		s.ph.SearchMarkets,
+	)
+
+	mcp.AddTool(
+		s.ms, &mcp.Tool{
 			Name:        "get_whale_activity",
 			Description: "Detect whale-sized trades (notional >= usd_threshold) for every market in a Polymarket event, aggregated per market with buy/sell ratio",
 		},

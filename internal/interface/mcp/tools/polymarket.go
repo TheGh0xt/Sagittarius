@@ -78,3 +78,35 @@ func (h *Pmhandler) FetchEventByID(
 		},
 	}, nil, nil
 }
+
+// SearchMarkets resolves free text to candidate Polymarket events.
+//
+// The entry point for a question rather than a slug. "Who will win the ballon
+// dor?" names no market, so without this the request cannot reach one at all.
+func (h *Pmhandler) SearchMarkets(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	input polymarket.SearchMarketsRequest,
+) (
+	*mcp.CallToolResult,
+	any,
+	error,
+) {
+	matches, err := h.pmService.SearchMarkets(ctx, input)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	result, err := shared.MarshalJSON(matches)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: string(result),
+			},
+		},
+	}, nil, nil
+}

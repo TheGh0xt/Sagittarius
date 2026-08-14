@@ -11,8 +11,9 @@ import (
 )
 
 type stubProvider struct {
-	event *domain.Event
-	err   error
+	event   *domain.Event
+	results *domain.SearchResults
+	err     error
 }
 
 func (s *stubProvider) FetchEventBySlug(ctx context.Context, slug string) (*domain.Event, error) {
@@ -23,8 +24,16 @@ func (s *stubProvider) FetchEventByID(ctx context.Context, id string) (*domain.E
 	return s.event, s.err
 }
 
+// The stub covers SearchProvider too, so tests that only care about event
+// fetching do not have to construct a second fake.
+func (s *stubProvider) SearchEvents(
+	ctx context.Context, query string, limit int,
+) (*domain.SearchResults, error) {
+	return s.results, s.err
+}
+
 func TestFetchEventByIDValidation(t *testing.T) {
-	svc := NewPmService(&stubProvider{}, slog.Default())
+	svc := NewPmService(&stubProvider{}, &stubProvider{}, slog.Default())
 
 	var invalid shared.ErrInvalidInput
 	if _, err := svc.FetchEventByID(context.Background(), ""); !errors.As(err, &invalid) {
@@ -37,7 +46,7 @@ func TestFetchEventByIDValidation(t *testing.T) {
 
 func TestFetchEventByIDBuildsContext(t *testing.T) {
 	ev := &domain.Event{ID: "42", Title: "T", Volume: 10}
-	svc := NewPmService(&stubProvider{event: ev}, slog.Default())
+	svc := NewPmService(&stubProvider{event: ev}, &stubProvider{}, slog.Default())
 
 	got, err := svc.FetchEventByID(context.Background(), "42")
 	if err != nil {
@@ -49,14 +58,14 @@ func TestFetchEventByIDBuildsContext(t *testing.T) {
 }
 
 func TestFetchEventByIDPropagatesError(t *testing.T) {
-	svc := NewPmService(&stubProvider{err: errors.New("boom")}, slog.Default())
+	svc := NewPmService(&stubProvider{err: errors.New("boom")}, &stubProvider{}, slog.Default())
 	if _, err := svc.FetchEventByID(context.Background(), "42"); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
 func TestFetchEventBySlugValidation(t *testing.T) {
-	svc := NewPmService(&stubProvider{}, slog.Default())
+	svc := NewPmService(&stubProvider{}, &stubProvider{}, slog.Default())
 
 	var invalid shared.ErrInvalidInput
 	if _, err := svc.FetchEventBySlug(context.Background(), ""); !errors.As(err, &invalid) {
