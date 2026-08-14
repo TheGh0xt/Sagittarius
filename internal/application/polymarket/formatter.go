@@ -12,6 +12,17 @@ type (
 	}
 
 	MarketAnalysis struct {
+		// ConditionID is the market's stable on-chain identifier, and the
+		// value downstream systems must key on. Without it the reasoning
+		// agent has nothing to cite, and it will invent an identifier from
+		// whatever text it has — a stored report is then impossible to group
+		// by market or evaluate against one.
+		ConditionID string `json:"condition_id"`
+
+		// Slug identifies the market within its event and is what a human
+		// recognises in a Polymarket URL.
+		Slug string `json:"slug"`
+
 		Question string `json:"question"`
 
 		Probability float64 `json:"probability"`
@@ -48,6 +59,9 @@ func BuildEventIntelligenceContext(event *polymarket.Event) *EventIntelligenceCo
 
 	for _, market := range event.Markets {
 		ctx.Markets = append(ctx.Markets, MarketAnalysis{
+			ConditionID: market.ConditionID,
+			Slug:        market.Slug,
+
 			Question: market.Question,
 
 			Probability: market.LastTradePrice,
