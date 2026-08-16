@@ -6,3 +6,8 @@
 /docs/*
 !/docs/docs_MCP_SERVER_SPEC.md
 !/docs/docs_PROJECT_PROPOSAL.md
+# Approved design specs are a record of why a change was made, so they ship
+# with the code rather than living on one machine. Re-including the directory
+# is required: /docs/* excludes it, and git will not descend into an excluded
+# directory to find an exception underneath it.
+!/docs/superpowers/
