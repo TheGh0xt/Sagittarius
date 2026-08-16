@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/TheGh0xt/Sagittarius/internal/domain/polymarket"
@@ -75,6 +76,19 @@ func (c *Client) gammaEventBySlugURL(slug string) string {
 
 func (c *Client) gammaEventByIDURL(id string) string {
 	return fmt.Sprintf("%s/events/%s", c.baseGammaURL, url.PathEscape(id))
+}
+
+// gammaSearchURL builds a public-search query for live events only.
+//
+// events_status=active is load-bearing: without it Gamma returns settled
+// events from previous years alongside current ones, and the top hit for a
+// recurring event is usually last year's closed market.
+func (c *Client) gammaSearchURL(query string, limit int) string {
+	params := url.Values{}
+	params.Set("q", query)
+	params.Set("events_status", "active")
+	params.Set("limit_per_type", strconv.Itoa(limit))
+	return fmt.Sprintf("%s/public-search?%s", c.baseGammaURL, params.Encode())
 }
 
 func makePmGetRequest[T any](ctx context.Context, cl *Client, url string) (*T, error) {

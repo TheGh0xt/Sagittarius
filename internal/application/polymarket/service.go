@@ -12,19 +12,25 @@ import (
 type Service interface {
 	FetchEventBySlug(ctx context.Context, slug string) (*EventIntelligenceContext, error)
 	FetchEventByID(ctx context.Context, id string) (*EventIntelligenceContext, error)
+	SearchMarkets(ctx context.Context, req SearchMarketsRequest) (*SearchMarketsResponse, error)
 }
 
 type pmService struct {
-	ep  polymarket.EventProvider
+	ep polymarket.EventProvider
+	// Separate from ep because the two answer different questions: ep fetches
+	// an event you can already name, sp works out which event was meant.
+	sp  polymarket.SearchProvider
 	slg *slog.Logger
 }
 
 func NewPmService(
 	ep polymarket.EventProvider,
+	sp polymarket.SearchProvider,
 	slg *slog.Logger,
 ) Service {
 	return &pmService{
 		ep:  ep,
+		sp:  sp,
 		slg: slg,
 	}
 }

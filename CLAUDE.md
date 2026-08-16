@@ -75,10 +75,11 @@ Registered in `internal/interface/mcp/register.go`:
 
 - `get_event_by_slug` `{slug}` — condensed `EventIntelligenceContext` (summary, markets with probabilities and price changes, tags, metadata context)
 - `get_event_by_id` `{id}` — same payload, fetched by numeric Gamma event ID
+- `search_markets` `{query, limit?=5}` — resolves free text to candidate event slugs ranked by volume, so a request naming a subject rather than a market can reach one; the caller then fetches the winner with `get_event_by_slug`. Only open events are returned — a settled market's price can never move again. Queries are reduced to their distinctive terms first (`internal/application/polymarket/query.go`), because Gamma matches phrases and a raw question scores against every other question-shaped market.
 - `get_whale_activity` `{slug, usd_threshold?=25000, limit?=100}` — whale-sized trades per market with totals and buy/sell ratio
 - `get_market_snapshot` `{slug}` — per-market state vector: implied probability, orderbook skew, volume-spike analysis, whale count
 
-Still planned (from `docs/docs_MCP_SERVER_SPEC.md`): `search_markets`, `get_market_prices`, `get_market_history`, `get_market_orderbook`, `get_market_trades`.
+Still planned (from `docs/docs_MCP_SERVER_SPEC.md`): `get_market_prices`, `get_market_history`, `get_market_orderbook`, `get_market_trades`.
 
 ## Commit Conventions
 - Never add "Co-Authored-By" lines or AI attribution to Git commits.

@@ -50,7 +50,7 @@ func main() {
 	)
 
 	client := polymarket.NewClient(logger)
-	pSvc := pmApp.NewPmService(client, logger)
+	pSvc := pmApp.NewPmService(client, client, logger)
 	sSvc := sigApp.NewSignalService(client, client, logger)
 	server := smcp.NewServer(ms, pSvc, sSvc, logger)
 
