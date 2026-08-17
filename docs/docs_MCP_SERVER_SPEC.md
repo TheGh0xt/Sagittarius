@@ -44,7 +44,7 @@ The MCP Server exposes the following programmatic tools to the Host LLM. Each to
 
 ### 2.2 Financial & Order Book Metrics
 * `get_market_prices`: Fetch real-time token implied probabilities (e.g., Yes token = $0.58).
-* `get_market_history`: Fetch time-series historical price bars (OHLCV) for market charting.
+* `get_market_history`: Fetch a time-series of historical prices for market charting. **Not OHLCV** — CLOB `prices-history` returns `{t, p}` pairs only, so open/high/low/close must be bucketed from that tick series and volume is not available from this endpoint at all. Windowed volume comes from Gamma (`volume24hr`, `volume1wk`, `volume1mo`) instead.
 * `get_market_volume`: Fetch consolidated rolling transactional volume metrics over specified temporal intervals (1h, 24h, 7d).
 * `get_market_orderbook`: Retrieve current Central Limit Order Book (CLOB) snapshots up to a depth of 50 levels (bids, asks, sizes).
 

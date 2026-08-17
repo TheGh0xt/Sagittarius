@@ -21,10 +21,42 @@ type WhaleEvent struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// VolumeSignal compares recent trade volume against a baseline and flags spikes.
+// Baseline sources, reported so the caller can tell a full trailing-week
+// average from a degraded fallback.
+const (
+	BaselineTrailing7d  = "trailing_7d"
+	BaselineLifetimeAvg = "lifetime_avg"
+)
+
+// volumeWindowHours is the span of the recent-volume figure. Both sides of the
+// comparison are per-day rates, which is the whole point: the previous
+// implementation compared a sum of the last 100 trades -- covering an hour on a
+// busy market and months on a quiet one -- against a per-day baseline.
+const volumeWindowHours = 24
+
+// VolumeInput is the per-market volume data the signal is computed from.
+//
+// All of it comes from Gamma, which reports windowed volume directly. Deriving
+// these from trades would cap the numerator at whatever the trade fetch limit
+// returns, truncating exactly the busy markets a spike detector exists to find.
+type VolumeInput struct {
+	Volume24Hr float64 // recent: the last 24 hours
+	Volume1Wk  float64 // trailing-week total, for the baseline
+	Lifetime   float64 // fallback numerator
+	AgeDays    float64 // real market age, supplied by the caller
+}
+
+// VolumeSignal compares the last 24 hours against a normal day and flags spikes.
 type VolumeSignal struct {
+	// Available is false when no baseline could be established. The rest of
+	// the fields are then zero and mean nothing -- deliberately, rather than
+	// carrying an invented constant that reads as a measurement.
+	Available bool `json:"available"`
+
 	RecentVolumeUSD   float64 `json:"recent_volume_usd"`
 	BaselineVolumeUSD float64 `json:"baseline_volume_usd"`
+	BaselineSource    string  `json:"baseline_source"`
+	WindowHours       int     `json:"window_hours"`
 	VelocityChangePct float64 `json:"velocity_change_pct"`
 	IsSpike           bool    `json:"is_spike"` // velocity > +200%
 }
@@ -91,23 +123,51 @@ func ComputeOrderbookSkew(ob *polymarket.Orderbook) OrderbookSkew {
 	}
 }
 
-// ComputeVolumeSignal compares recent trade volume against a baseline average
-// and flags whether the velocity change constitutes a spike (> +200%).
-func ComputeVolumeSignal(trades []polymarket.Trade, baselineVolumeUSD float64) VolumeSignal {
-	recentVol := 0.0
-	for _, t := range trades {
-		recentVol += t.Price * t.Size
+// ComputeVolumeSignal compares the last 24 hours of volume against a normal
+// day for that market, flagging a spike above +200% (three times normal).
+//
+// The baseline is the market's own trailing-week daily average where one
+// exists. Anything wider is worse: a lifetime average silently assumes the
+// market's whole history resembles this week, and dividing lifetime volume by
+// a guessed 30-day life -- what this did before -- overstated a normal day by a
+// median of 12x on live data. Because the baseline is the denominator, too
+// large a value shrinks the velocity, so a genuine spike reads as a drought and
+// the detector misses precisely what it exists to catch.
+func ComputeVolumeSignal(in VolumeInput) VolumeSignal {
+	baseline, source := resolveBaseline(in)
+	if baseline <= 0 {
+		return VolumeSignal{Available: false}
 	}
 
-	velocityChange := 0.0
-	if baselineVolumeUSD > 0 {
-		velocityChange = ((recentVol - baselineVolumeUSD) / baselineVolumeUSD) * 100
-	}
+	velocityChange := ((in.Volume24Hr - baseline) / baseline) * 100
 
 	return VolumeSignal{
-		RecentVolumeUSD:   recentVol,
-		BaselineVolumeUSD: baselineVolumeUSD,
+		Available:         true,
+		RecentVolumeUSD:   in.Volume24Hr,
+		BaselineVolumeUSD: baseline,
+		BaselineSource:    source,
+		WindowHours:       volumeWindowHours,
 		VelocityChangePct: velocityChange,
 		IsSpike:           velocityChange > 200.0,
 	}
+}
+
+// resolveBaseline picks a per-day baseline. A zero baseline means none could
+// be formed.
+func resolveBaseline(in VolumeInput) (float64, string) {
+	// A market younger than a week has not lived a full trailing week, so
+	// volume1wk holds only the days it existed. Dividing that by 7 averages in
+	// days before it was listed, understating a normal day and over-firing the
+	// spike flag -- the same error as the old lifetime/30 heuristic, in the
+	// opposite direction. Its real age gives the honest rate.
+	if in.AgeDays > 0 && in.AgeDays < 7 && in.Lifetime > 0 {
+		return in.Lifetime / in.AgeDays, BaselineLifetimeAvg
+	}
+	if in.Volume1Wk > 0 {
+		return in.Volume1Wk / 7.0, BaselineTrailing7d
+	}
+	if in.Lifetime > 0 && in.AgeDays > 0 {
+		return in.Lifetime / in.AgeDays, BaselineLifetimeAvg
+	}
+	return 0, ""
 }

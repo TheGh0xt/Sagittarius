@@ -10,6 +10,7 @@ import (
 
 	domain "github.com/TheGh0xt/Sagittarius/internal/domain/polymarket"
 	"github.com/TheGh0xt/Sagittarius/internal/domain/shared"
+	"github.com/TheGh0xt/Sagittarius/internal/domain/signal"
 )
 
 // testEvent builds an Event via JSON because Event.Markets is an anonymous
@@ -23,6 +24,8 @@ func testEvent() *domain.Event {
 			"conditionId": "0xcond",
 			"clobTokenIds": "[\"tok1\",\"tok2\"]",
 			"volumeNum": 300000,
+			"volume24hr": 90000,
+			"volume1wk": 70000,
 			"lastTradePrice": 0.58
 		}]
 	}`
@@ -171,12 +174,46 @@ func TestBuildMarketSnapshot(t *testing.T) {
 	if math.Abs(m.SkewInfo.BidVolumeUSD-240) > 1e-9 || math.Abs(m.SkewInfo.AskVolumeUSD-167) > 1e-9 {
 		t.Errorf("unexpected skew: %+v", m.SkewInfo)
 	}
-	if m.WhaleCount != 2 {
-		t.Errorf("whale count: want 2, got %d", m.WhaleCount)
+	if m.WhaleCount == nil || *m.WhaleCount != 2 {
+		t.Errorf("whale count: want 2, got %v", m.WhaleCount)
 	}
-	// recent $90k vs baseline $10k = +800% → spike
+	// volume1wk $70k / 7 = $10k baseline; last 24h $90k = +800% → spike
 	if !m.VolumeAnalysis.IsSpike {
 		t.Errorf("expected volume spike, got %+v", m.VolumeAnalysis)
+	}
+	if m.VolumeAnalysis.BaselineSource != signal.BaselineTrailing7d {
+		t.Errorf("baseline source: want %q, got %q",
+			signal.BaselineTrailing7d, m.VolumeAnalysis.BaselineSource)
+	}
+}
+
+// A trades outage costs the whale count and nothing else. Volume comes from
+// Gamma now, so dropping the whole market -- which is what this used to do --
+// would discard probability, skew and volume that were all fetched fine.
+func TestBuildMarketSnapshotSurvivesTradeFailure(t *testing.T) {
+	svc := NewSignalService(
+		&stubEventProvider{event: testEvent()},
+		&stubMarketData{tradesErr: errors.New("data api down"), book: testBook},
+		slog.Default(),
+	)
+
+	report, err := svc.BuildMarketSnapshot(context.Background(), "will-btc-hit-150k")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(report.Markets) != 1 {
+		t.Fatalf("expected the market to survive a trades outage, got %d", len(report.Markets))
+	}
+
+	m := report.Markets[0]
+	if m.WhaleCount != nil {
+		t.Errorf("whale count should be absent, not zero: %v", *m.WhaleCount)
+	}
+	if !m.VolumeAnalysis.Available || !m.VolumeAnalysis.IsSpike {
+		t.Errorf("volume analysis should be unaffected by a trades outage: %+v", m.VolumeAnalysis)
+	}
+	if m.Probability != 0.58 {
+		t.Errorf("probability: want 0.58, got %v", m.Probability)
 	}
 }
 
