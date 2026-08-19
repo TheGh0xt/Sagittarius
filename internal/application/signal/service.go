@@ -116,20 +116,28 @@ func (s *signalService) BuildMarketSnapshot(ctx context.Context, slug string) (*
 		return nil, err
 	}
 
+	// Read once so every market in a report is aged against the same instant.
+	now := time.Now().UTC()
+
 	report := &MarketSnapshotReport{
 		EventTitle: event.Title,
-		Timestamp:  time.Now().UTC(),
+		Timestamp:  now,
 		Markets:    []MarketSnapshot{},
 	}
 
 	for i := range event.Markets {
 		market := &event.Markets[i]
 
-		trades, err := s.mdp.FetchTrades(ctx, market.ConditionID, defaultTradeLimit)
-		if err != nil {
-			s.slg.Warn("skipping market: trades fetch failed",
+		// Only the whale count comes from trades now: volume is read from
+		// Gamma's windowed fields. So a trades outage costs one field rather
+		// than the whole market, which is what dropping it here used to do.
+		var whaleCount *int
+		if trades, err := s.mdp.FetchTrades(ctx, market.ConditionID, defaultTradeLimit); err != nil {
+			s.slg.Warn("trades fetch failed; whale count omitted",
 				"condition_id", market.ConditionID, "err", err)
-			continue
+		} else {
+			count := len(signal.ComputeWhaleEvents(trades, defaultUSDThreshold))
+			whaleCount = &count
 		}
 
 		var skew signal.OrderbookSkew
@@ -143,24 +151,34 @@ func (s *signalService) BuildMarketSnapshot(ctx context.Context, slug string) (*
 			skew = signal.ComputeOrderbookSkew(book)
 		}
 
-		// Baseline approximates average daily volume as lifetime volume over a
-		// ~30-day life; revisit once price-history tooling can compute it exactly.
-		baseline := 10000.0
-		if market.VolumeNum > 0 {
-			baseline = market.VolumeNum / 30.0
-		}
-
 		report.Markets = append(report.Markets, MarketSnapshot{
-			Question:       market.Question,
-			ConditionID:    market.ConditionID,
-			Probability:    market.LastTradePrice,
-			SkewInfo:       skew,
-			VolumeAnalysis: signal.ComputeVolumeSignal(trades, baseline),
-			WhaleCount:     len(signal.ComputeWhaleEvents(trades, defaultUSDThreshold)),
+			Question:    market.Question,
+			ConditionID: market.ConditionID,
+			Probability: market.LastTradePrice,
+			SkewInfo:    skew,
+			VolumeAnalysis: signal.ComputeVolumeSignal(signal.VolumeInput{
+				Volume24Hr: market.Volume24Hr,
+				Volume1Wk:  market.Volume1Wk,
+				Lifetime:   market.VolumeNum,
+				AgeDays:    marketAgeDays(market.StartDate, now),
+			}),
+			WhaleCount: whaleCount,
 		})
 	}
 
 	return report, nil
+}
+
+// marketAgeDays is how long a market has been open, in fractional days.
+//
+// Returns 0 when the start date is missing or in the future, which the domain
+// reads as "no age known" and refuses to build a baseline from -- rather than
+// dividing by a guess, which is the mistake this replaces.
+func marketAgeDays(startDate, now time.Time) float64 {
+	if startDate.IsZero() || !startDate.Before(now) {
+		return 0
+	}
+	return now.Sub(startDate).Hours() / 24.0
 }
 
 // buySellRatio renders whale USD value split as "BUY:SELL" percentages.

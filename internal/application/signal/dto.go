@@ -37,7 +37,10 @@ type (
 		Probability    float64              `json:"probability"`
 		SkewInfo       signal.OrderbookSkew `json:"skew_info"`
 		VolumeAnalysis signal.VolumeSignal  `json:"volume_analysis"`
-		WhaleCount     int                  `json:"whale_count"`
+		// Null when the trade fetch failed, which is not the same statement as
+		// zero. Reporting 0 there would tell the reasoning agent this market
+		// has no whale activity when what happened is that nobody looked.
+		WhaleCount *int `json:"whale_count"`
 	}
 
 	MarketSnapshotReport struct {
