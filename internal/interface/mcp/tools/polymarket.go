@@ -110,3 +110,36 @@ func (h *Pmhandler) SearchMarkets(
 		},
 	}, nil, nil
 }
+
+// GetMovingMarkets surfaces what is actually happening in a set of categories.
+//
+// The other tools all need a market named first. This one answers the prior
+// question — which market is worth looking at — and is what lets the product
+// open on something useful rather than an empty input box.
+func (h *Pmhandler) GetMovingMarkets(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	input polymarket.GetMovingMarketsRequest,
+) (
+	*mcp.CallToolResult,
+	any,
+	error,
+) {
+	markets, err := h.pmService.GetMovingMarkets(ctx, input)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	result, err := shared.MarshalJSON(markets)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: string(result),
+			},
+		},
+	}, nil, nil
+}

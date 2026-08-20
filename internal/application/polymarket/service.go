@@ -13,13 +13,18 @@ type Service interface {
 	FetchEventBySlug(ctx context.Context, slug string) (*EventIntelligenceContext, error)
 	FetchEventByID(ctx context.Context, id string) (*EventIntelligenceContext, error)
 	SearchMarkets(ctx context.Context, req SearchMarketsRequest) (*SearchMarketsResponse, error)
+	GetMovingMarkets(ctx context.Context, req GetMovingMarketsRequest) (*GetMovingMarketsResponse, error)
 }
 
 type pmService struct {
 	ep polymarket.EventProvider
 	// Separate from ep because the two answer different questions: ep fetches
 	// an event you can already name, sp works out which event was meant.
-	sp  polymarket.SearchProvider
+	sp polymarket.SearchProvider
+	// And a third question again: dp asks what is moving in an area nobody has
+	// named. May be nil, in which case GetMovingMarkets reports that discovery
+	// is unconfigured rather than panicking.
+	dp  polymarket.DiscoveryProvider
 	slg *slog.Logger
 }
 
@@ -31,6 +36,22 @@ func NewPmService(
 	return &pmService{
 		ep:  ep,
 		sp:  sp,
+		slg: slg,
+	}
+}
+
+// NewPmServiceWithDiscovery additionally wires category-based discovery, which
+// backs the personalised feed and the automated report generator.
+func NewPmServiceWithDiscovery(
+	ep polymarket.EventProvider,
+	sp polymarket.SearchProvider,
+	dp polymarket.DiscoveryProvider,
+	slg *slog.Logger,
+) Service {
+	return &pmService{
+		ep:  ep,
+		sp:  sp,
+		dp:  dp,
 		slg: slg,
 	}
 }

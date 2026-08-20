@@ -44,6 +44,20 @@ func (s *Server) RegisterPmiTools() {
 
 	mcp.AddTool(
 		s.ms, &mcp.Tool{
+			Name: "get_moving_markets",
+			Description: "Find open Polymarket markets in one or more product " +
+				"categories that have moved most in the last 24 hours, ranked " +
+				"by movement rather than volume. Use this to answer 'what is " +
+				"worth looking at' before any market has been named. Markets " +
+				"resolving within min_days_to_resolution are excluded, because " +
+				"a market that settles before it can be re-checked cannot be " +
+				"evaluated. Categories default to the full thirteen.",
+		},
+		s.ph.GetMovingMarkets,
+	)
+
+	mcp.AddTool(
+		s.ms, &mcp.Tool{
 			Name:        "get_whale_activity",
 			Description: "Detect whale-sized trades (notional >= usd_threshold) for every market in a Polymarket event, aggregated per market with buy/sell ratio",
 		},
