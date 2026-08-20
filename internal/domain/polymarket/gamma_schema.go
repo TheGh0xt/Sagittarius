@@ -37,70 +37,70 @@ type Event struct {
 	NegRiskMarketID  string    `json:"negRiskMarketID"`
 	CommentCount     int       `json:"commentCount"`
 	Markets          []struct {
-		ID                           string    `json:"id"`
-		Question                     string    `json:"question"`
-		ConditionID                  string    `json:"conditionId"`
-		Slug                         string    `json:"slug"`
-		ResolutionSource             string    `json:"resolutionSource,omitempty"`
-		EndDate                      time.Time `json:"endDate"`
-		Liquidity                    string    `json:"liquidity,omitempty"`
-		StartDate                    time.Time `json:"startDate"`
-		Image                        string    `json:"image"`
-		Icon                         string    `json:"icon"`
-		Description                  string    `json:"description"`
-		Outcomes                     string    `json:"outcomes"`
-		OutcomePrices                string    `json:"outcomePrices,omitempty"`
-		Volume                       string    `json:"volume"`
-		Active                       bool      `json:"active"`
-		Closed                       bool      `json:"closed"`
-		MarketMakerAddress           string    `json:"marketMakerAddress"`
-		CreatedAt                    time.Time `json:"createdAt"`
-		UpdatedAt                    time.Time `json:"updatedAt"`
-		New                          bool      `json:"new"`
-		Featured                     bool      `json:"featured"`
-		SubmittedBy                  string    `json:"submitted_by"`
-		Archived                     bool      `json:"archived"`
-		ResolvedBy                   string    `json:"resolvedBy"`
-		Restricted                   bool      `json:"restricted"`
-		GroupItemTitle               string    `json:"groupItemTitle"`
-		GroupItemThreshold           string    `json:"groupItemThreshold"`
-		QuestionID                   string    `json:"questionID"`
-		EnableOrderBook              bool      `json:"enableOrderBook"`
-		OrderPriceMinTickSize        float64   `json:"orderPriceMinTickSize"`
-		OrderMinSize                 float64   `json:"orderMinSize"`
-		VolumeNum                    float64   `json:"volumeNum"`
-		LiquidityNum                 float64   `json:"liquidityNum,omitempty"`
-		EndDateIso                   string    `json:"endDateIso"`
-		StartDateIso                 string    `json:"startDateIso,omitempty"`
-		HasReviewedDates             bool      `json:"hasReviewedDates"`
-		Volume24Hr                   float64   `json:"volume24hr,omitempty"`
-		Volume1Wk                    float64   `json:"volume1wk,omitempty"`
-		Volume1Mo                    float64   `json:"volume1mo,omitempty"`
-		Volume1Yr                    float64   `json:"volume1yr,omitempty"`
-		ClobTokenIds                 string    `json:"clobTokenIds"`
-		ComboStatus                  string    `json:"comboStatus"`
-		UmaBond                      string    `json:"umaBond"`
-		UmaReward                    string    `json:"umaReward"`
-		Volume24HrClob               float64   `json:"volume24hrClob,omitempty"`
-		Volume1WkClob                float64   `json:"volume1wkClob,omitempty"`
-		Volume1MoClob                float64   `json:"volume1moClob,omitempty"`
-		Volume1YrClob                float64   `json:"volume1yrClob,omitempty"`
-		VolumeClob                   float64   `json:"volumeClob"`
-		LiquidityClob                float64   `json:"liquidityClob,omitempty"`
-		MakerBaseFee                 float64   `json:"makerBaseFee"`
-		TakerBaseFee                 float64   `json:"takerBaseFee"`
-		CustomLiveness               int       `json:"customLiveness"`
-		AcceptingOrders              bool      `json:"acceptingOrders"`
-		NegRisk                      bool      `json:"negRisk"`
-		NegRiskMarketID              string    `json:"negRiskMarketID"`
-		NegRiskRequestID             string    `json:"negRiskRequestID"`
-		Ready                        bool      `json:"ready"`
-		Funded                       bool      `json:"funded"`
-		AcceptingOrdersTimestamp     time.Time `json:"acceptingOrdersTimestamp"`
-		Cyom                         bool      `json:"cyom"`
-		Competitive                  float64   `json:"competitive,omitempty"`
-		PagerDutyNotificationEnabled bool      `json:"pagerDutyNotificationEnabled"`
-		Approved                     bool      `json:"approved"`
+		ID                           string       `json:"id"`
+		Question                     string       `json:"question"`
+		ConditionID                  string       `json:"conditionId"`
+		Slug                         string       `json:"slug"`
+		ResolutionSource             string       `json:"resolutionSource,omitempty"`
+		EndDate                      time.Time    `json:"endDate"`
+		Liquidity                    string       `json:"liquidity,omitempty"`
+		StartDate                    time.Time    `json:"startDate"`
+		Image                        string       `json:"image"`
+		Icon                         string       `json:"icon"`
+		Description                  string       `json:"description"`
+		Outcomes                     string       `json:"outcomes"`
+		OutcomePrices                string       `json:"outcomePrices,omitempty"`
+		Volume                       string       `json:"volume"`
+		Active                       bool         `json:"active"`
+		Closed                       bool         `json:"closed"`
+		MarketMakerAddress           string       `json:"marketMakerAddress"`
+		CreatedAt                    time.Time    `json:"createdAt"`
+		UpdatedAt                    time.Time    `json:"updatedAt"`
+		New                          bool         `json:"new"`
+		Featured                     bool         `json:"featured"`
+		SubmittedBy                  string       `json:"submitted_by"`
+		Archived                     bool         `json:"archived"`
+		ResolvedBy                   string       `json:"resolvedBy"`
+		Restricted                   bool         `json:"restricted"`
+		GroupItemTitle               string       `json:"groupItemTitle"`
+		GroupItemThreshold           string       `json:"groupItemThreshold"`
+		QuestionID                   string       `json:"questionID"`
+		EnableOrderBook              bool         `json:"enableOrderBook"`
+		OrderPriceMinTickSize        float64      `json:"orderPriceMinTickSize"`
+		OrderMinSize                 float64      `json:"orderMinSize"`
+		VolumeNum                    float64      `json:"volumeNum"`
+		LiquidityNum                 float64      `json:"liquidityNum,omitempty"`
+		EndDateIso                   string       `json:"endDateIso"`
+		StartDateIso                 string       `json:"startDateIso,omitempty"`
+		HasReviewedDates             bool         `json:"hasReviewedDates"`
+		Volume24Hr                   float64      `json:"volume24hr,omitempty"`
+		Volume1Wk                    float64      `json:"volume1wk,omitempty"`
+		Volume1Mo                    float64      `json:"volume1mo,omitempty"`
+		Volume1Yr                    float64      `json:"volume1yr,omitempty"`
+		ClobTokenIds                 string       `json:"clobTokenIds"`
+		ComboStatus                  string       `json:"comboStatus"`
+		UmaBond                      string       `json:"umaBond"`
+		UmaReward                    string       `json:"umaReward"`
+		Volume24HrClob               float64      `json:"volume24hrClob,omitempty"`
+		Volume1WkClob                float64      `json:"volume1wkClob,omitempty"`
+		Volume1MoClob                float64      `json:"volume1moClob,omitempty"`
+		Volume1YrClob                float64      `json:"volume1yrClob,omitempty"`
+		VolumeClob                   float64      `json:"volumeClob"`
+		LiquidityClob                float64      `json:"liquidityClob,omitempty"`
+		MakerBaseFee                 float64      `json:"makerBaseFee"`
+		TakerBaseFee                 float64      `json:"takerBaseFee"`
+		CustomLiveness               int          `json:"customLiveness"`
+		AcceptingOrders              bool         `json:"acceptingOrders"`
+		NegRisk                      bool         `json:"negRisk"`
+		NegRiskMarketID              string       `json:"negRiskMarketID"`
+		NegRiskRequestID             string       `json:"negRiskRequestID"`
+		Ready                        bool         `json:"ready"`
+		Funded                       bool         `json:"funded"`
+		AcceptingOrdersTimestamp     FlexibleTime `json:"acceptingOrdersTimestamp"`
+		Cyom                         bool         `json:"cyom"`
+		Competitive                  float64      `json:"competitive,omitempty"`
+		PagerDutyNotificationEnabled bool         `json:"pagerDutyNotificationEnabled"`
+		Approved                     bool         `json:"approved"`
 		ClobRewards                  []struct {
 			ID               string  `json:"id"`
 			ConditionID      string  `json:"conditionId"`
@@ -110,49 +110,52 @@ type Event struct {
 			StartDate        string  `json:"startDate"`
 			EndDate          string  `json:"endDate"`
 		} `json:"clobRewards,omitempty"`
-		RewardsMinSize        float64   `json:"rewardsMinSize"`
-		RewardsMaxSpread      float64   `json:"rewardsMaxSpread"`
-		Spread                float64   `json:"spread"`
-		OneWeekPriceChange    float64   `json:"oneWeekPriceChange,omitempty"`
-		OneMonthPriceChange   float64   `json:"oneMonthPriceChange,omitempty"`
-		LastTradePrice        float64   `json:"lastTradePrice"`
-		BestBid               float64   `json:"bestBid,omitempty"`
-		BestAsk               float64   `json:"bestAsk"`
-		AutomaticallyActive   bool      `json:"automaticallyActive"`
-		ClearBookOnStart      bool      `json:"clearBookOnStart"`
-		SeriesColor           string    `json:"seriesColor,omitempty"`
-		ShowGmpSeries         bool      `json:"showGmpSeries"`
-		ShowGmpOutcome        bool      `json:"showGmpOutcome"`
-		ManualActivation      bool      `json:"manualActivation"`
-		NegRiskOther          bool      `json:"negRiskOther"`
-		UmaResolutionStatuses string    `json:"umaResolutionStatuses"`
-		PendingDeployment     bool      `json:"pendingDeployment"`
-		Deploying             bool      `json:"deploying"`
-		DeployingTimestamp    time.Time `json:"deployingTimestamp"`
-		RfqEnabled            bool      `json:"rfqEnabled"`
-		HoldingRewardsEnabled bool      `json:"holdingRewardsEnabled"`
-		FeesEnabled           bool      `json:"feesEnabled"`
-		RequiresTranslation   bool      `json:"requiresTranslation"`
-		FeeType               string    `json:"feeType"`
+		RewardsMinSize        float64      `json:"rewardsMinSize"`
+		RewardsMaxSpread      float64      `json:"rewardsMaxSpread"`
+		Spread                float64      `json:"spread"`
+		OneWeekPriceChange    float64      `json:"oneWeekPriceChange,omitempty"`
+		OneMonthPriceChange   float64      `json:"oneMonthPriceChange,omitempty"`
+		LastTradePrice        float64      `json:"lastTradePrice"`
+		BestBid               float64      `json:"bestBid,omitempty"`
+		BestAsk               float64      `json:"bestAsk"`
+		AutomaticallyActive   bool         `json:"automaticallyActive"`
+		ClearBookOnStart      bool         `json:"clearBookOnStart"`
+		SeriesColor           string       `json:"seriesColor,omitempty"`
+		ShowGmpSeries         bool         `json:"showGmpSeries"`
+		ShowGmpOutcome        bool         `json:"showGmpOutcome"`
+		ManualActivation      bool         `json:"manualActivation"`
+		NegRiskOther          bool         `json:"negRiskOther"`
+		UmaResolutionStatuses string       `json:"umaResolutionStatuses"`
+		PendingDeployment     bool         `json:"pendingDeployment"`
+		Deploying             bool         `json:"deploying"`
+		DeployingTimestamp    FlexibleTime `json:"deployingTimestamp"`
+		RfqEnabled            bool         `json:"rfqEnabled"`
+		HoldingRewardsEnabled bool         `json:"holdingRewardsEnabled"`
+		FeesEnabled           bool         `json:"feesEnabled"`
+		RequiresTranslation   bool         `json:"requiresTranslation"`
+		FeeType               string       `json:"feeType"`
 		FeeSchedule           struct {
 			Exponent   int     `json:"exponent"`
 			Rate       float64 `json:"rate"`
 			TakerOnly  bool    `json:"takerOnly"`
 			RebateRate float64 `json:"rebateRate"`
 		} `json:"feeSchedule"`
-		OneDayPriceChange     float64   `json:"oneDayPriceChange,omitempty"`
-		Volume24HrAmm         float64   `json:"volume24hrAmm,omitempty"`
-		Volume1WkAmm          float64   `json:"volume1wkAmm,omitempty"`
-		Volume1MoAmm          float64   `json:"volume1moAmm,omitempty"`
-		Volume1YrAmm          float64   `json:"volume1yrAmm,omitempty"`
-		VolumeAmm             float64   `json:"volumeAmm,omitempty"`
-		LiquidityAmm          float64   `json:"liquidityAmm,omitempty"`
-		OneHourPriceChange    float64   `json:"oneHourPriceChange,omitempty"`
-		OneYearPriceChange    float64   `json:"oneYearPriceChange,omitempty"`
-		ClosedTime            string    `json:"closedTime,omitempty"`
-		UmaEndDate            time.Time `json:"umaEndDate"`
-		UmaResolutionStatus   string    `json:"umaResolutionStatus,omitempty"`
-		AutomaticallyResolved bool      `json:"automaticallyResolved,omitempty"`
+		OneDayPriceChange  float64 `json:"oneDayPriceChange,omitempty"`
+		Volume24HrAmm      float64 `json:"volume24hrAmm,omitempty"`
+		Volume1WkAmm       float64 `json:"volume1wkAmm,omitempty"`
+		Volume1MoAmm       float64 `json:"volume1moAmm,omitempty"`
+		Volume1YrAmm       float64 `json:"volume1yrAmm,omitempty"`
+		VolumeAmm          float64 `json:"volumeAmm,omitempty"`
+		LiquidityAmm       float64 `json:"liquidityAmm,omitempty"`
+		OneHourPriceChange float64 `json:"oneHourPriceChange,omitempty"`
+		OneYearPriceChange float64 `json:"oneYearPriceChange,omitempty"`
+		ClosedTime         string  `json:"closedTime,omitempty"`
+		// Not time.Time: Gamma sends this one in a Postgres-style layout that
+		// encoding/json refuses, and the resulting error fails every event in
+		// the response. See FlexibleTime.
+		UmaEndDate            FlexibleTime `json:"umaEndDate"`
+		UmaResolutionStatus   string       `json:"umaResolutionStatus,omitempty"`
+		AutomaticallyResolved bool         `json:"automaticallyResolved,omitempty"`
 	} `json:"markets"`
 	Tags []struct {
 		ID                  string    `json:"id"`
