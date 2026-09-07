@@ -1,5 +1,9 @@
 #!/bin/sh
-# Blocks direct pushes to master. All changes must go through a PR.
+# Local gate before a push. Two jobs: keep direct pushes off the protected
+# branch, and run the checks CI will run anyway — failing here costs seconds,
+# failing in CI costs a round trip.
+#
+# Install: cp scripts/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
 
 protected_branch="main"
 current_branch=$(git symbolic-ref HEAD 2>/dev/null | sed 's|refs/heads/||')
@@ -11,3 +15,36 @@ if [ "$current_branch" = "$protected_branch" ]; then
   echo ""
   exit 1
 fi
+
+if ! command -v go >/dev/null 2>&1; then
+  echo "  pre-push: go not found, skipping checks (CI will still run them)."
+  exit 0
+fi
+
+fail() {
+  echo ""
+  echo "  $1"
+  echo "  Push aborted. Fix it, or re-run with --no-verify if you know better."
+  echo ""
+  exit 1
+}
+
+# CI gates on `go mod tidy` leaving no diff. Catching that here avoids a
+# round trip on a one-line fix.
+cp go.mod go.mod.prepush.bak 2>/dev/null
+cp go.sum go.sum.prepush.bak 2>/dev/null
+go mod tidy >/dev/null 2>&1
+if ! git diff --quiet -- go.mod go.sum; then
+  mv go.mod.prepush.bak go.mod 2>/dev/null
+  mv go.sum.prepush.bak go.sum 2>/dev/null
+  fail "go.mod/go.sum are not tidy — run 'go mod tidy' and commit the result."
+fi
+rm -f go.mod.prepush.bak go.sum.prepush.bak
+
+go build ./... || fail "go build failed."
+go vet ./...  || fail "go vet failed."
+# CI runs this with -race; locally the plain run is enough to catch breakage
+# fast, and -race would roughly triple the wait on every push.
+go test ./... >/dev/null || fail "go test failed."
+
+exit 0
