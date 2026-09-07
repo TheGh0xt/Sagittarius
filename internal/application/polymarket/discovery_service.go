@@ -3,6 +3,7 @@ package polymarket
 import (
 	"context"
 	"math"
+	"sync"
 	"time"
 
 	domain "github.com/TheGh0xt/Sagittarius/internal/domain/polymarket"
@@ -83,13 +84,31 @@ func (pms *pmService) GetMovingMarkets(
 	}
 
 	now := time.Now().UTC()
-	perCategory := make([][]MovingMarket, 0, len(categories))
 
-	for _, category := range categories {
-		found := pms.movingMarketsIn(ctx, category, now, minDays)
-		rankByMovement(found)
-		perCategory = append(perCategory, found)
+	// One category per slot, fetched concurrently: a default call with no
+	// categories named queries all thirteen (fourteen tags, since Business &
+	// Earnings maps to two), and doing that one HTTP round trip at a time —
+	// as this used to — means the last category waits on the latency of every
+	// category before it. Indexed by position rather than appended, so the
+	// round-robin in interleave still sees categories in the order the caller
+	// asked for them regardless of which goroutine finishes first.
+	//
+	// This does not remove the need for the infrastructure client's own
+	// outbound rate limiting: it turns 14 sequential requests into up to 14
+	// concurrent ones, and the client caps how many of those actually leave
+	// the process at once.
+	perCategory := make([][]MovingMarket, len(categories))
+	var wg sync.WaitGroup
+	for i, category := range categories {
+		wg.Add(1)
+		go func(i int, category string) {
+			defer wg.Done()
+			found := pms.movingMarketsIn(ctx, category, now, minDays)
+			rankByMovement(found)
+			perCategory[i] = found
+		}(i, category)
 	}
+	wg.Wait()
 
 	return &GetMovingMarketsResponse{
 		Categories: categories,
@@ -103,25 +122,46 @@ func (pms *pmService) GetMovingMarkets(
 // category being unavailable upstream must not cost the caller every other
 // category. Degraded-but-successful, per the standing convention — and visibly
 // so, because the failure is logged rather than swallowed.
+//
+// A category's tags are also fetched concurrently (only Business & Earnings
+// has more than one, but the pattern costs nothing when there is just one
+// tag to fetch).
 func (pms *pmService) movingMarketsIn(
 	ctx context.Context, category string, now time.Time, minDays int,
 ) []MovingMarket {
-	var out []MovingMarket
+	tags := tagSlugsForCategory(category)
 
-	for _, tagSlug := range tagSlugsForCategory(category) {
-		events, err := pms.dp.FetchEventsByTag(ctx, tagSlug, eventsPerTag)
-		if err != nil {
-			pms.slg.Error("discovery failed for tag; skipping",
-				"category", category, "tag", tagSlug, "err", err)
-			continue
-		}
+	var (
+		mu  sync.Mutex
+		out []MovingMarket
+		wg  sync.WaitGroup
+	)
 
-		for i := range events {
-			if market, ok := movingMarketFrom(&events[i], category, now, minDays); ok {
-				out = append(out, market)
+	for _, tagSlug := range tags {
+		wg.Add(1)
+		go func(tagSlug string) {
+			defer wg.Done()
+
+			events, err := pms.dp.FetchEventsByTag(ctx, tagSlug, eventsPerTag)
+			if err != nil {
+				pms.slg.Error("discovery failed for tag; skipping",
+					"category", category, "tag", tagSlug, "err", err)
+				return
 			}
-		}
+
+			var found []MovingMarket
+			for i := range events {
+				if market, ok := movingMarketFrom(&events[i], category, now, minDays); ok {
+					found = append(found, market)
+				}
+			}
+
+			mu.Lock()
+			out = append(out, found...)
+			mu.Unlock()
+		}(tagSlug)
 	}
+	wg.Wait()
 
 	return out
 }

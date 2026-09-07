@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/TheGh0xt/Sagittarius/internal/domain/polymarket"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -22,6 +23,24 @@ const (
 	// clob-api.polymarket.com does not resolve; clob.polymarket.com is the
 	// real public endpoint.
 	ClobBaseURL = "https://clob.polymarket.com"
+
+	// defaultCacheTTL is how long a GET response is served from cache before
+	// being refetched. Short enough that a signal (price, orderbook, whale
+	// trade) is never stale by more than this; long enough that a default
+	// get_moving_markets call -- 14 Gamma requests across the 13 product
+	// categories -- and any repeat of it within the window pay for those
+	// requests once rather than every time.
+	defaultCacheTTL = 20 * time.Second
+
+	// defaultRatePerSecond and defaultBurst bound outbound requests to every
+	// Polymarket host this client talks to. Gamma, Data and CLOB publish no
+	// documented public rate limit, so this is a conservative, good-neighbor
+	// ceiling rather than a measured one -- comfortably above what a single
+	// get_moving_markets fan-out needs once caching removes the duplicate
+	// requests, and low enough to stay well clear of anything Polymarket
+	// might impose without notice.
+	defaultRatePerSecond = 8
+	defaultBurst         = 8
 )
 
 type pmErr struct {
@@ -36,6 +55,9 @@ type Client struct {
 	baseGammaURL string
 	baseDataURL  string
 	baseClobURL  string
+
+	cache   *ttlCache
+	limiter *rate.Limiter
 }
 
 // Compile-time checks that Client satisfies the domain provider interfaces.
@@ -56,18 +78,17 @@ func NewClientWithBaseURLs(slg *slog.Logger, gammaURL, dataURL, clobURL string) 
 		baseGammaURL: gammaURL,
 		baseDataURL:  dataURL,
 		baseClobURL:  clobURL,
+		cache:        newTTLCache(defaultCacheTTL),
+		limiter:      rate.NewLimiter(rate.Limit(defaultRatePerSecond), defaultBurst),
 	}
 }
 
-func checkRespStatusCode(resp *http.Response) error {
-	if resp.StatusCode != http.StatusOK {
-		var err pmErr
-		if err := json.NewDecoder(resp.Body).Decode(&err); err != nil {
-			return err
-		}
-		return fmt.Errorf("%s:%s", err.ErrType, err.ErrMessage)
+func decodePmErr(status int, body []byte) error {
+	var perr pmErr
+	if err := json.Unmarshal(body, &perr); err != nil {
+		return fmt.Errorf("upstream status %d: %s", status, string(body))
 	}
-	return nil
+	return fmt.Errorf("%v:%v", perr.ErrType, perr.ErrMessage)
 }
 
 func (c *Client) gammaEventBySlugURL(slug string) string {
@@ -91,60 +112,137 @@ func (c *Client) gammaSearchURL(query string, limit int) string {
 	return fmt.Sprintf("%s/public-search?%s", c.baseGammaURL, params.Encode())
 }
 
-func makePmGetRequest[T any](ctx context.Context, cl *Client, url string) (*T, error) {
-	slog.Info("url string", "url", url)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		cl.slg.Error("failed to create request", "err", err)
-		return nil, err
+// doRequest performs one logical HTTP call, applying outbound rate limiting
+// and retrying transient failures (network errors and 5xx responses) with
+// exponential backoff. It returns the raw response body on a 2xx status.
+//
+// A fresh *http.Request is built on every attempt rather than one reused
+// across retries: an http.Request whose body has already been read cannot be
+// resent safely, and rebuilding is cheap next to a network round trip.
+func (c *Client) doRequest(ctx context.Context, method, reqURL string, body []byte) ([]byte, error) {
+	var lastErr error
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if attempt > 0 {
+			if err := c.sleep(ctx, backoff(attempt-1)); err != nil {
+				return nil, err
+			}
+		}
+
+		if err := c.limiter.Wait(ctx); err != nil {
+			return nil, err
+		}
+
+		respBody, status, err := c.attempt(ctx, method, reqURL, body)
+		if err != nil {
+			lastErr = err
+			c.slg.Warn("request failed; will retry if attempts remain",
+				"url", reqURL, "attempt", attempt+1, "max_attempts", maxAttempts, "err", err)
+			continue
+		}
+
+		if status != http.StatusOK {
+			lastErr = decodePmErr(status, respBody)
+			if !isRetryableStatus(status) || attempt == maxAttempts-1 {
+				c.slg.Error("upstream returned an error status", "url", reqURL, "status", status)
+				return nil, lastErr
+			}
+			c.slg.Warn("upstream returned a retryable status",
+				"url", reqURL, "status", status, "attempt", attempt+1, "max_attempts", maxAttempts)
+			continue
+		}
+
+		return respBody, nil
 	}
-	resp, err := cl.c.Do(req)
+
+	return nil, fmt.Errorf("request to %s failed after %d attempts: %w", reqURL, maxAttempts, lastErr)
+}
+
+// attempt performs a single HTTP round trip, with no retry logic of its own.
+func (c *Client) attempt(ctx context.Context, method, reqURL string, body []byte) ([]byte, int, error) {
+	var payload io.Reader
+	if body != nil {
+		payload = bytes.NewReader(body)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, reqURL, payload)
 	if err != nil {
-		cl.slg.Error("failed to make request", "err", err)
-		return nil, err
+		return nil, 0, fmt.Errorf("building request: %w", err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := c.c.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("performing request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if err := checkRespStatusCode(resp); err != nil {
-		cl.slg.Error("failed response status check", "err", err)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("reading response body: %w", err)
+	}
+
+	return respBody, resp.StatusCode, nil
+}
+
+// sleep waits for d, or returns ctx's error if it is cancelled first.
+func (c *Client) sleep(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+// makePmGetRequest performs a cached, rate-limited, retried GET and decodes
+// the JSON response as T.
+//
+// Cached by full URL, which already encodes the endpoint and every query
+// parameter, so distinct queries against the same endpoint (e.g. two
+// different tag slugs) are never confused with one another.
+func makePmGetRequest[T any](ctx context.Context, cl *Client, reqURL string) (*T, error) {
+	if cached, ok := cl.cache.get(reqURL); ok {
+		var result T
+		if err := json.Unmarshal(cached, &result); err == nil {
+			return &result, nil
+		}
+		// A corrupt cache entry (should not happen; defensive) falls through
+		// to a real fetch rather than failing the call.
+		cl.slg.Warn("cache entry failed to decode; refetching", "url", reqURL)
+	}
+
+	body, err := cl.doRequest(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
 		return nil, err
 	}
 
+	cl.cache.set(reqURL, body)
+
 	var result T
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		cl.slg.Error("failed to decode response", "err", err)
+	if err := json.Unmarshal(body, &result); err != nil {
+		cl.slg.Error("failed to decode response", "url", reqURL, "err", err)
 		return nil, err
 	}
 	return &result, nil
 }
 
-func makePmPostRequest[T any](ctx context.Context, cl *Client, url string, body []byte) (*T, error) {
-	var payload io.Reader
-	if body != nil {
-		cl.slg.Debug("making post request", "url", url, "body", string(body))
-		payload = bytes.NewReader(body)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, payload)
+// makePmPostRequest performs a rate-limited, retried POST and decodes the
+// JSON response as T. Not cached: POSTs are not assumed idempotent.
+func makePmPostRequest[T any](ctx context.Context, cl *Client, reqURL string, body []byte) (*T, error) {
+	respBody, err := cl.doRequest(ctx, http.MethodPost, reqURL, body)
 	if err != nil {
-		cl.slg.Error("failed to create request", "err", err)
-		return nil, err
-	}
-	resp, err := cl.c.Do(req)
-	if err != nil {
-		cl.slg.Error("failed to make request", "err", err)
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := checkRespStatusCode(resp); err != nil {
-		cl.slg.Error("failed response status check", "err", err)
 		return nil, err
 	}
 
 	var result T
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		cl.slg.Error("failed to decode response", "err", err)
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		cl.slg.Error("failed to decode response", "url", reqURL, "err", err)
 		return nil, err
 	}
 	return &result, nil

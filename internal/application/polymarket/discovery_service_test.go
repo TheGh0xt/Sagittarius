@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,20 +44,37 @@ func eventJSON(t *testing.T, slug string, endDate time.Time, change24h float64) 
 	return ev
 }
 
+// calls is guarded by mu because GetMovingMarkets now fetches every
+// category's tags concurrently (B.2): without a lock, concurrent appends
+// from multiple goroutines would race under `go test -race`, which is
+// exactly the kind of bug that concurrency change could introduce for real.
 type stubDiscovery struct {
 	byTag map[string][]domain.Event
 	err   error
+
+	mu    sync.Mutex
 	calls []string
 }
 
 func (s *stubDiscovery) FetchEventsByTag(
 	ctx context.Context, tagSlug string, limit int,
 ) ([]domain.Event, error) {
+	s.mu.Lock()
 	s.calls = append(s.calls, tagSlug)
+	s.mu.Unlock()
+
 	if s.err != nil {
 		return nil, s.err
 	}
 	return s.byTag[tagSlug], nil
+}
+
+// callCount reads calls safely; tests must use this rather than len(stub.calls)
+// directly now that FetchEventsByTag can be invoked from multiple goroutines.
+func (s *stubDiscovery) callCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.calls)
 }
 
 func newDiscoveryService(d *stubDiscovery) Service {
@@ -159,8 +177,8 @@ func TestGetMovingMarketsDefaultsToTheWholeTaxonomy(t *testing.T) {
 	}
 
 	// Business & Earnings maps to two tags, so 13 categories query 14 tags.
-	if len(stub.calls) != 14 {
-		t.Errorf("queried %d tags, want 14: %v", len(stub.calls), stub.calls)
+	if n := stub.callCount(); n != 14 {
+		t.Errorf("queried %d tags, want 14: %v", n, stub.calls)
 	}
 }
 

@@ -2,7 +2,10 @@ module github.com/TheGh0xt/Sagittarius
 
 go 1.26.2
 
-require github.com/modelcontextprotocol/go-sdk v1.6.1
+require (
+	github.com/modelcontextprotocol/go-sdk v1.6.1
+	golang.org/x/time v0.15.0
+)
 
 require (
 	github.com/google/jsonschema-go v0.4.3 // indirect
