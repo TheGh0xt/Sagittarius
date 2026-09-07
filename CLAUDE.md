@@ -16,7 +16,7 @@ just run-sse           # SSE on :8080 → /sse + /message
 
 # Test
 go test ./...
-go test ./internal/signal/...  # signal engine unit tests only
+go test ./internal/domain/signal/... ./internal/application/signal/...  # signal engine unit tests only
 
 # Health check (HTTP/SSE modes)
 curl http://localhost:8080/health
@@ -42,17 +42,6 @@ MCP Client
   → internal/infrastructure/polymarket/ (HTTP client → Polymarket Gamma/Data/CLOB APIs)
 ```
 
-### Layer responsibilities
-
-| Package | Role |
-|---|---|
-| `internal/interface/mcp/` | Transport wiring (stdio / SSE / streamable HTTP), tool registration via `RegisterPmiTools()` |
-| `internal/interface/mcp/tools/` | `Pmhandler` — converts raw service results to `mcp.CallToolResult` |
-| `internal/application/polymarket/` | `Service` interface + `pmService`; DTOs (`FetchEventBySlugRequest`, `EventIntelligenceContext`); `BuildEventIntelligenceContext` formatter |
-| `internal/domain/polymarket/` | `EventProvider` interface (repository pattern); `Event` domain struct (flat Gamma API schema) |
-| `internal/domain/shared/` | Typed error structs (`ErrInvalidInput`, `ErrInternalServerError`), `MarshalJSON`/`UnmarshalJSON` |
-| `internal/infrastructure/polymarket/` | `Client` implementing `EventProvider`; generic `makePmGetRequest[T]` / `makePmPostRequest[T]` helpers |
-
 ### Signal Engine (Layer 2) — wired in
 
 The Signal Engine lives on the clean-architecture stack: pure deterministic math (whale detection, orderbook skew, volume-spike analysis) in `internal/domain/signal/` (no I/O — unit-tested without mocks), orchestration in `internal/application/signal/` (resolves an event slug to per-market condition/token IDs, fetches trades and order books, condenses them into `WhaleActivityReport` / `MarketSnapshotReport`), handlers in `internal/interface/mcp/tools/signal.go`. The original Phase 1 prototype packages (`internal/polymarket/`, `internal/signal/`, `internal/mcp/`) were deleted once this port landed.
@@ -76,6 +65,7 @@ Registered in `internal/interface/mcp/register.go`:
 - `get_event_by_slug` `{slug}` — condensed `EventIntelligenceContext` (summary, markets with probabilities and price changes, tags, metadata context)
 - `get_event_by_id` `{id}` — same payload, fetched by numeric Gamma event ID
 - `search_markets` `{query, limit?=5}` — resolves free text to candidate event slugs ranked by volume, so a request naming a subject rather than a market can reach one; the caller then fetches the winner with `get_event_by_slug`. Only open events are returned — a settled market's price can never move again. Queries are reduced to their distinctive terms first (`internal/application/polymarket/query.go`), because Gamma matches phrases and a raw question scores against every other question-shaped market.
+- `get_moving_markets` `{categories?=all 13, limit?=20, min_days_to_resolution?=7}` — open markets in one or more product categories that moved most in the last 24h, ranked by **movement, not volume** (UI_PRD §6.4). Answers "what is worth looking at" before any market has been named, and backs both the personalised feed and the automated report generator. Two filters keep results analysable: events resolving within `min_days_to_resolution` are dropped (a market that settles before it can be re-checked scores CONFIRMED for free), and sub-markets whose probability has left the tradeable band are ignored — an open event still contains settled sub-markets, and their settlement registers as the largest move in the feed. Category→Gamma tag mappings are measured, not guessed; four are approximate (`internal/application/polymarket/discovery.go`).
 - `get_whale_activity` `{slug, usd_threshold?=25000, limit?=100}` — whale-sized trades per market with totals and buy/sell ratio
 - `get_market_snapshot` `{slug}` — per-market state vector: implied probability, orderbook skew, volume-spike analysis, whale count
 
