@@ -16,7 +16,7 @@ just run-sse           # SSE on :8080 → /sse + /message
 
 # Test
 go test ./...
-go test ./internal/signal/...  # signal engine unit tests only
+go test ./internal/domain/signal/... ./internal/application/signal/...  # signal engine unit tests only
 
 # Health check (HTTP/SSE modes)
 curl http://localhost:8080/health
@@ -41,17 +41,6 @@ MCP Client
   → internal/domain/polymarket/   (EventProvider interface, Event domain type)
   → internal/infrastructure/polymarket/ (HTTP client → Polymarket Gamma/Data/CLOB APIs)
 ```
-
-### Layer responsibilities
-
-| Package | Role |
-|---|---|
-| `internal/interface/mcp/` | Transport wiring (stdio / SSE / streamable HTTP), tool registration via `RegisterPmiTools()` |
-| `internal/interface/mcp/tools/` | `Pmhandler` — converts raw service results to `mcp.CallToolResult` |
-| `internal/application/polymarket/` | `Service` interface + `pmService`; DTOs (`FetchEventBySlugRequest`, `EventIntelligenceContext`); `BuildEventIntelligenceContext` formatter |
-| `internal/domain/polymarket/` | `EventProvider` interface (repository pattern); `Event` domain struct (flat Gamma API schema) |
-| `internal/domain/shared/` | Typed error structs (`ErrInvalidInput`, `ErrInternalServerError`), `MarshalJSON`/`UnmarshalJSON` |
-| `internal/infrastructure/polymarket/` | `Client` implementing `EventProvider`; generic `makePmGetRequest[T]` / `makePmPostRequest[T]` helpers |
 
 ### Signal Engine (Layer 2) — wired in
 
