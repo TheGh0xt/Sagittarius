@@ -33,7 +33,16 @@ func bearerAuthMiddleware(next http.Handler, slg *slog.Logger) http.Handler {
 	expected := []byte(token)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got, ok := bearerToken(r.Header.Get("Authorization"))
+		reason := "mismatch"
+		if !ok {
+			reason = "missing"
+		}
 		if !ok || subtle.ConstantTimeCompare([]byte(got), expected) != 1 {
+			// During the H4 rollout, a client not yet sending the header is
+			// otherwise silent here and only visible as an error on the
+			// client's side. Never log the header or token value itself.
+			slg.Info("Sagittarius", "state", "rejected unauthenticated request",
+				"path", r.URL.Path, "remote_addr", r.RemoteAddr, "reason", reason)
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return

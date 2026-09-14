@@ -1,6 +1,8 @@
 package mcp
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"io"
 	"log/slog"
 	"net/http"
@@ -8,6 +10,19 @@ import (
 	"strings"
 	"testing"
 )
+
+// testToken generates a fresh random token per call, so no secret-shaped
+// literal ever lands in source (a static string like "test-token" trips
+// secret scanners in CI even though it's not a real credential).
+func testToken(t *testing.T) string {
+	t.Helper()
+
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		t.Fatalf("generating test token: %v", err)
+	}
+	return hex.EncodeToString(b)
+}
 
 // postMCP sends an MCP initialize handshake through mux, optionally carrying
 // an Authorization header, and returns the response. It uses a real loopback
@@ -56,7 +71,7 @@ func TestBearerAuthOpenWhenTokenUnset(t *testing.T) {
 }
 
 func TestBearerAuthRejectsMissingHeader(t *testing.T) {
-	t.Setenv(mcpBearerTokenEnvVar, "s3cret")
+	t.Setenv(mcpBearerTokenEnvVar, testToken(t))
 
 	status, body := postMCP(t, newTestServer(t).buildHTTPMux(), "")
 
@@ -66,9 +81,9 @@ func TestBearerAuthRejectsMissingHeader(t *testing.T) {
 }
 
 func TestBearerAuthRejectsWrongToken(t *testing.T) {
-	t.Setenv(mcpBearerTokenEnvVar, "s3cret")
+	t.Setenv(mcpBearerTokenEnvVar, testToken(t))
 
-	status, body := postMCP(t, newTestServer(t).buildHTTPMux(), "Bearer wrong-token")
+	status, body := postMCP(t, newTestServer(t).buildHTTPMux(), "Bearer "+testToken(t))
 
 	if status != http.StatusUnauthorized {
 		t.Fatalf("expected 401 with the wrong token, got %d: %s", status, body)
@@ -76,9 +91,10 @@ func TestBearerAuthRejectsWrongToken(t *testing.T) {
 }
 
 func TestBearerAuthAcceptsCorrectToken(t *testing.T) {
-	t.Setenv(mcpBearerTokenEnvVar, "s3cret")
+	token := testToken(t)
+	t.Setenv(mcpBearerTokenEnvVar, token)
 
-	status, body := postMCP(t, newTestServer(t).buildHTTPMux(), "Bearer s3cret")
+	status, body := postMCP(t, newTestServer(t).buildHTTPMux(), "Bearer "+token)
 
 	if status != http.StatusOK {
 		t.Fatalf("expected the handshake to proceed with the right token, got %d: %s", status, body)
@@ -89,7 +105,7 @@ func TestBearerAuthAcceptsCorrectToken(t *testing.T) {
 }
 
 func TestHealthStaysOpenWhenTokenSet(t *testing.T) {
-	t.Setenv(mcpBearerTokenEnvVar, "s3cret")
+	t.Setenv(mcpBearerTokenEnvVar, testToken(t))
 
 	srv := httptest.NewServer(newTestServer(t).buildHTTPMux())
 	defer srv.Close()
@@ -105,19 +121,60 @@ func TestHealthStaysOpenWhenTokenSet(t *testing.T) {
 	}
 }
 
-func TestBearerAuthRejectionNeverLogsToken(t *testing.T) {
-	t.Setenv(mcpBearerTokenEnvVar, "s3cret-do-not-log")
+func TestSSEAuthRejectsMissingHeader(t *testing.T) {
+	t.Setenv(mcpBearerTokenEnvVar, testToken(t))
+
+	srv := httptest.NewServer(newTestServer(t).buildSSEMux())
+	defer srv.Close()
+
+	resp, err := srv.Client().Get(srv.URL + "/sse")
+	if err != nil {
+		t.Fatalf("GET /sse: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without a header on /sse, got %d", resp.StatusCode)
+	}
+}
+
+func TestSSEAuthOpenWhenTokenUnset(t *testing.T) {
+	t.Setenv(mcpBearerTokenEnvVar, "")
+
+	srv := httptest.NewServer(newTestServer(t).buildSSEMux())
+	defer srv.Close()
+
+	resp, err := srv.Client().Get(srv.URL + "/sse")
+	if err != nil {
+		t.Fatalf("GET /sse: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		t.Fatalf("expected /sse to stay open with auth disabled, got %d", resp.StatusCode)
+	}
+}
+
+func TestBearerAuthRejectionLogsWithoutToken(t *testing.T) {
+	token := testToken(t)
+	t.Setenv(mcpBearerTokenEnvVar, token)
 
 	var logs strings.Builder
 	srv := newTestServer(t)
 	srv.slg = slog.New(slog.NewTextHandler(&logs, nil))
 
-	status, _ := postMCP(t, srv.buildHTTPMux(), "Bearer wrong-guess")
+	wrongToken := testToken(t)
+	status, _ := postMCP(t, srv.buildHTTPMux(), "Bearer "+wrongToken)
 
 	if status != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", status)
 	}
-	if strings.Contains(logs.String(), "s3cret-do-not-log") || strings.Contains(logs.String(), "wrong-guess") {
-		t.Fatalf("log output must never contain a token, got: %s", logs.String())
+
+	logged := logs.String()
+	if !strings.Contains(logged, "rejected") {
+		t.Fatalf("expected a rejection log line, got: %s", logged)
+	}
+	if strings.Contains(logged, token) || strings.Contains(logged, wrongToken) {
+		t.Fatalf("log output must never contain a token, got: %s", logged)
 	}
 }
