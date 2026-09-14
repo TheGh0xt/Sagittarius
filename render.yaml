@@ -37,4 +37,18 @@ services:
       # makes the service look deployed and be entirely unusable.
       - key: MCP_BEHIND_PROXY
         value: "1"
+
+      # Bearer token required on /mcp (and the SSE transport's /sse,
+      # /message) once set — /health stays open regardless. Unset by
+      # default, so this deploy doesn't break existing clients: the server
+      # logs one startup warning that auth is disabled and accepts every
+      # request, exactly as before B.3.
+      #
+      # Rollout order matters. Set this only after Cygnus's MCP client sends
+      # the matching `Authorization: Bearer <token>` header (lane CR) is
+      # deployed, with the same value set here and on the Cygnus service —
+      # see H4 in WAVE1_LEDGER.md at the workspace root. Setting it here
+      # first would lock Cygnus out.
+      - key: MCP_BEARER_TOKEN
+        sync: false
     autoDeploy: true

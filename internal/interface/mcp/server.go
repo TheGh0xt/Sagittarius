@@ -91,35 +91,49 @@ func (s *Server) GetHTTPHandler(logger *slog.Logger) http.Handler {
 			"state", "MCP_BEHIND_PROXY set; accepting non-loopback Host headers",
 		)
 	}
-	return mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
+	handler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		return s.ms
 	}, &mcp.StreamableHTTPOptions{
 		Logger:                     logger,
 		SessionTimeout:             time.Minute * 15,
 		DisableLocalhostProtection: proxied,
 	})
+	return bearerAuthMiddleware(handler, s.slg)
 }
 
-func (s *Server) RunHTTP(ctx context.Context, port string) error {
-	s.slg.Info("Sagittarius", "state", "Starting Streamable HTTP transport on :"+port)
+// buildHTTPMux assembles the Streamable HTTP transport's routes: /mcp behind
+// bearer auth (see auth.go), and /health open regardless, since platform
+// health checks carry no Authorization header.
+func (s *Server) buildHTTPMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.Handle("/mcp", s.GetHTTPHandler(s.slg))
 	mux.HandleFunc("/health", s.healthcheck)
 
-	return s.runServer(ctx, port, mux)
+	return mux
 }
 
-func (s *Server) RunSSE(ctx context.Context, port string) error {
-	s.slg.Info("Sagittarius", "state", "Starting SSE transport on :"+port)
-	handler := s.GetSSEHandler()
+func (s *Server) RunHTTP(ctx context.Context, port string) error {
+	s.slg.Info("Sagittarius", "state", "Starting Streamable HTTP transport on :"+port)
+	return s.runServer(ctx, port, s.buildHTTPMux())
+}
+
+// buildSSEMux assembles the SSE transport's routes: /sse and /message behind
+// bearer auth (see auth.go), and /health open regardless.
+func (s *Server) buildSSEMux() *http.ServeMux {
+	handler := bearerAuthMiddleware(s.GetSSEHandler(), s.slg)
 
 	mux := http.NewServeMux()
 	mux.Handle("/sse", handler)
 	mux.Handle("/message", handler)
 	mux.HandleFunc("/health", s.healthcheck)
 
-	return s.runServer(ctx, port, mux)
+	return mux
+}
+
+func (s *Server) RunSSE(ctx context.Context, port string) error {
+	s.slg.Info("Sagittarius", "state", "Starting SSE transport on :"+port)
+	return s.runServer(ctx, port, s.buildSSEMux())
 }
 
 func (s *Server) runServer(ctx context.Context, port string, handler http.Handler) error {
