@@ -3,6 +3,7 @@ package polymarket
 import (
 	"math"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -77,14 +78,51 @@ func AllCategories() []string {
 	return out
 }
 
+// categoryAliases resolves every spelling a caller may legitimately send onto
+// the canonical display name used as the categoryTags key.
+//
+// Why this is needed: the taxonomy is keyed on UI_PRD §6.3 *display names*
+// ("Business & Earnings"), but the product's own identity for a category is the
+// slug in Cygnus's interest_categories table ("business"), and that is what
+// GET /v1/markets/moving forwards — `accounts.get_interests` selects
+// `category_slug` and passes it through unchanged. Before this index, every
+// onboarded user's feed sent "politics"/"crypto"/"ai", missed the Title Case
+// keys, and got a hard ErrInvalidInput that Cygnus surfaced as
+// "503 sagittarius-unavailable". The scheduled generation cycle was unaffected
+// because it passes no categories at all and falls back to AllCategories().
+//
+// Lowercasing alone fixes twelve of the thirteen — only "business" differs from
+// its display name by more than case, so it is the one explicit alias.
+var categoryAliases = buildCategoryAliases()
+
+func buildCategoryAliases() map[string]string {
+	aliases := make(map[string]string, len(categoryTags)+1)
+	for name := range categoryTags {
+		aliases[normaliseCategory(name)] = name
+	}
+	aliases["business"] = "Business & Earnings"
+	return aliases
+}
+
+func normaliseCategory(category string) string {
+	return strings.ToLower(strings.TrimSpace(category))
+}
+
 // tagSlugsForCategory returns the Gamma tag slugs for a product category, or
 // nil if the category is not in the taxonomy.
+//
+// Accepts either the display name ("Business & Earnings") or the product slug
+// ("business"), case-insensitively — see categoryAliases.
 //
 // nil rather than a passthrough guess: querying Gamma for a tag that does not
 // exist returns zero events, which is indistinguishable from "nothing in this
 // category is moving" and would hide the caller's mistake.
 func tagSlugsForCategory(category string) []string {
-	slugs, ok := categoryTags[category]
+	canonical, ok := categoryAliases[normaliseCategory(category)]
+	if !ok {
+		return nil
+	}
+	slugs, ok := categoryTags[canonical]
 	if !ok {
 		return nil
 	}
