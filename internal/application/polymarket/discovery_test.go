@@ -57,6 +57,48 @@ func TestTagSlugsForCategoryRejectsUnknown(t *testing.T) {
 	}
 }
 
+// Every slug Cygnus can actually send must resolve.
+//
+// This is the exact list returned by production's GET /v1/interests/categories
+// on 2026-09-19, which is what GET /v1/markets/moving forwards verbatim:
+// `accounts.get_interests` selects `category_slug` from interest_categories and
+// passes it straight through. The taxonomy is keyed on Title Case display
+// names, so before the alias index every one of these missed, Sagittarius
+// returned ErrInvalidInput for the whole call, and every onboarded user's feed
+// showed "the market data service is unreachable".
+//
+// Pinned to the live values rather than derived from categoryTags: deriving
+// them would reproduce whatever mistake the map already contains, which is the
+// mistake that caused the outage.
+func TestProductCategorySlugsAllResolve(t *testing.T) {
+	productionSlugs := []string{
+		"politics", "elections", "geopolitics", "economics", "crypto",
+		"business", "technology", "ai", "sports", "entertainment",
+		"science", "climate", "health",
+	}
+
+	if len(productionSlugs) != len(categoryTags) {
+		t.Fatalf("taxonomy drifted: %d product slugs, %d mapped categories",
+			len(productionSlugs), len(categoryTags))
+	}
+
+	for _, slug := range productionSlugs {
+		if got := tagSlugsForCategory(slug); got == nil {
+			t.Errorf("product slug %q does not resolve — the feed 503s for any user who picked it", slug)
+		}
+	}
+}
+
+// The display names remain valid input: the MCP tool is documented in terms of
+// the UI_PRD taxonomy, and AllCategories() hands them back to callers verbatim.
+func TestTagSlugsForCategoryIsCaseInsensitive(t *testing.T) {
+	for _, spelling := range []string{"Business & Earnings", "business", "BUSINESS", " Business "} {
+		if got := tagSlugsForCategory(spelling); got == nil {
+			t.Errorf("tagSlugsForCategory(%q) = nil, want the Business & Earnings tags", spelling)
+		}
+	}
+}
+
 // "culture" was tested against the live API and returns zero open events. It
 // is a plausible-looking guess for Entertainment and must never be used.
 func TestCultureIsNotUsedForEntertainment(t *testing.T) {
