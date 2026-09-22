@@ -2,6 +2,7 @@ package polymarket
 
 import (
 	"context"
+	"time"
 )
 
 type (
@@ -18,7 +19,12 @@ type (
 	// at all. It is what the personalised feed and the automated report
 	// generator both stand on.
 	DiscoveryProvider interface {
-		FetchEventsByTag(ctx context.Context, tagSlug string, limit int) ([]Event, error)
+		// endDateMin drops events resolving before that instant upstream,
+		// rather than after the limit has already been applied — see
+		// gammaEventsByTagURL.
+		FetchEventsByTag(
+			ctx context.Context, tagSlug string, limit int, endDateMin time.Time,
+		) ([]Event, error)
 	}
 
 	// MarketDataProvider supplies raw market data for the deterministic Signal
