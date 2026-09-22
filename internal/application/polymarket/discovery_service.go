@@ -14,10 +14,18 @@ const (
 	defaultMovingLimit = 20
 	maxMovingLimit     = 50
 
-	// How many events to pull per tag before ranking. Gamma returns them
-	// unordered for our purposes — we deliberately do not ask it to sort,
-	// because its only sort is by volume and that is the wrong axis — so the
-	// window has to be wide enough that the biggest mover is inside it.
+	// How many events to pull per tag before ranking.
+	//
+	// This used to be justified by "Gamma returns them unordered for our
+	// purposes", which was measured false on 2026-09-22: Gamma returns
+	// id-ascending, oldest first. A window of any width over an oldest-first
+	// list does not contain the biggest mover — it contains the oldest
+	// markets, which is what the feed was showing.
+	//
+	// FetchEventsByTag now asks for most-traded-first and filters unscoreable
+	// events upstream, so this window holds 40 plausible candidates rather
+	// than 40 of the longest-standing ones, and rankByMovement picks the
+	// biggest mover from a pool that can actually contain it.
 	eventsPerTag = 40
 
 	// Days a market must still have left before it is worth analysing. Larger
@@ -142,7 +150,12 @@ func (pms *pmService) movingMarketsIn(
 		go func(tagSlug string) {
 			defer wg.Done()
 
-			events, err := pms.dp.FetchEventsByTag(ctx, tagSlug, eventsPerTag)
+			// Same cutoff isScoreable applies below, pushed upstream so an
+			// unscoreable event never occupies one of the 40 slots.
+			cutoff := now.Add(time.Duration(minDays) * 24 * time.Hour)
+			events, err := pms.dp.FetchEventsByTag(
+				ctx, tagSlug, eventsPerTag, cutoff,
+			)
 			if err != nil {
 				pms.slg.Error("discovery failed for tag; skipping",
 					"category", category, "tag", tagSlug, "err", err)

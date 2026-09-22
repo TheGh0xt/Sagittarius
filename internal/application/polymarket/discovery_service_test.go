@@ -52,15 +52,17 @@ type stubDiscovery struct {
 	byTag map[string][]domain.Event
 	err   error
 
-	mu    sync.Mutex
-	calls []string
+	mu          sync.Mutex
+	calls       []string
+	endDateMins []time.Time
 }
 
 func (s *stubDiscovery) FetchEventsByTag(
-	ctx context.Context, tagSlug string, limit int,
+	ctx context.Context, tagSlug string, limit int, endDateMin time.Time,
 ) ([]domain.Event, error) {
 	s.mu.Lock()
 	s.calls = append(s.calls, tagSlug)
+	s.endDateMins = append(s.endDateMins, endDateMin)
 	s.mu.Unlock()
 
 	if s.err != nil {
@@ -212,7 +214,7 @@ type failingTagDiscovery struct {
 }
 
 func (f *failingTagDiscovery) FetchEventsByTag(
-	ctx context.Context, tagSlug string, limit int,
+	ctx context.Context, tagSlug string, limit int, endDateMin time.Time,
 ) ([]domain.Event, error) {
 	if tagSlug == f.fail {
 		return nil, errors.New("upstream exploded")
