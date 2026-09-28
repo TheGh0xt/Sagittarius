@@ -154,7 +154,10 @@ func (s *signalService) BuildMarketSnapshot(ctx context.Context, slug string) (*
 		report.Markets = append(report.Markets, MarketSnapshot{
 			Question:    market.Question,
 			ConditionID: market.ConditionID,
-			Probability: market.LastTradePrice,
+			// SAG-33. Was `market.LastTradePrice`, which is null for ~40% of
+			// live markets and decoded to 0.0 — handing the reasoning layer a
+			// fabricated "this market is at zero" for a market that is not.
+			Probability: yesProbability(market.OutcomePrices, market.LastTradePrice),
 			SkewInfo:    skew,
 			VolumeAnalysis: signal.ComputeVolumeSignal(signal.VolumeInput{
 				Volume24Hr: market.Volume24Hr,
@@ -201,4 +204,13 @@ func firstClobTokenID(raw string) (string, error) {
 		return "", fmt.Errorf("empty clobTokenIds")
 	}
 	return ids[0], nil
+}
+
+// yesProbability is polymarket.YesProbability with the "no price anywhere"
+// case flattened to 0, for DTO fields that cannot yet express absence. See
+// SAG-33: measured at 0 of 1859 live markets, and 0 is also what the consumer
+// reads as "no usable market data".
+func yesProbability(outcomePrices string, lastTradePrice *float64) float64 {
+	p, _ := polymarket.YesProbability(outcomePrices, lastTradePrice)
+	return p
 }

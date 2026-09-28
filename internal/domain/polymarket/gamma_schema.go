@@ -115,7 +115,11 @@ type Event struct {
 		Spread                float64      `json:"spread"`
 		OneWeekPriceChange    float64      `json:"oneWeekPriceChange,omitempty"`
 		OneMonthPriceChange   float64      `json:"oneMonthPriceChange,omitempty"`
-		LastTradePrice        float64      `json:"lastTradePrice"`
+		// A pointer because Gamma sends JSON `null` here for ~40% of live
+		// markets. Decoded into a plain float64 that became 0.0, which is a
+		// real price and therefore indistinguishable from a missing one.
+		// Read it through YesProbability, never directly.
+		LastTradePrice        *float64     `json:"lastTradePrice"`
 		BestBid               float64      `json:"bestBid,omitempty"`
 		BestAsk               float64      `json:"bestAsk"`
 		AutomaticallyActive   bool         `json:"automaticallyActive"`
