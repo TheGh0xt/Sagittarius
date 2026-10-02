@@ -193,8 +193,21 @@ func movingMarketFrom(
 	}
 
 	lead := -1
+	var leadProbability float64
 	for i := range event.Markets {
-		if !isTradeable(event.Markets[i].LastTradePrice) {
+		/*
+		 * SAG-33. This filter used to read `LastTradePrice` directly, which
+		 * Gamma sends as null for ~40% of live markets. Decoded to 0.0 that
+		 * failed `isTradeable`, so two in five markets were silently dropped
+		 * from candidate selection — and an event whose markets were all
+		 * null-priced vanished from the feed entirely, looking exactly like
+		 * an event with nothing moving. The visible symptom was a wrong
+		 * probability; this was the invisible one.
+		 */
+		probability, ok := domain.YesProbability(
+			event.Markets[i].OutcomePrices, event.Markets[i].LastTradePrice,
+		)
+		if !ok || !isTradeable(probability) {
 			continue
 		}
 		if event.Markets[i].Closed || (!event.Markets[i].Active && event.Markets[i].Approved) {
@@ -203,6 +216,7 @@ func movingMarketFrom(
 		if lead < 0 || math.Abs(event.Markets[i].OneDayPriceChange) >
 			math.Abs(event.Markets[lead].OneDayPriceChange) {
 			lead = i
+			leadProbability = probability
 		}
 	}
 	if lead < 0 {
@@ -214,7 +228,7 @@ func movingMarketFrom(
 		Slug:        event.Slug,
 		Title:       event.Title,
 		Category:    category,
-		Probability: market.LastTradePrice,
+		Probability: leadProbability,
 		Change1h:    float64(market.OneHourPriceChange),
 		Change24h:   market.OneDayPriceChange,
 		Volume24h:   event.Volume24Hr,

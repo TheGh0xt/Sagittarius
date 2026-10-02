@@ -64,7 +64,9 @@ func BuildEventIntelligenceContext(event *polymarket.Event) *EventIntelligenceCo
 
 			Question: market.Question,
 
-			Probability: market.LastTradePrice,
+			// SAG-33. See internal/domain/polymarket/probability.go — the last
+			// print is the wrong source, and it is null far more often than not.
+			Probability: yesProbability(market.OutcomePrices, market.LastTradePrice),
 
 			Change1h:  float64(market.OneHourPriceChange),
 			Change24h: market.OneDayPriceChange,
@@ -81,4 +83,16 @@ func BuildEventIntelligenceContext(event *polymarket.Event) *EventIntelligenceCo
 	}
 
 	return ctx
+}
+
+// yesProbability is domain.YesProbability with the "no price anywhere" case
+// flattened to 0, for DTO fields that cannot yet express absence.
+//
+// Safe only because that case is vanishingly rare — 0 of 1859 live markets
+// sampled on 2026-09-28 — and because 0 is also what the consumer treats as
+// "no usable market data". Making these fields nullable is the remaining half
+// of SAG-33 and is a cross-repo contract change; see Cygnus#81.
+func yesProbability(outcomePrices string, lastTradePrice *float64) float64 {
+	p, _ := polymarket.YesProbability(outcomePrices, lastTradePrice)
+	return p
 }

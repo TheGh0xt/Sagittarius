@@ -271,7 +271,7 @@ func TestGetMovingMarketsIgnoresSettledSubMarkets(t *testing.T) {
 	stub := &stubDiscovery{byTag: map[string][]domain.Event{
 		"politics": {
 			multiMarketEventJSON(t, "who-will-x-endorse", far, [][2]float64{
-				{0.999, 0.702}, // settled YES — biggest move, must be ignored
+				{0.999, 0.702},  // settled YES — biggest move, must be ignored
 				{0.001, -0.150}, // settled NO — must also be ignored
 				{0.340, 0.080},  // the real, still-tradeable move
 			}),
@@ -320,4 +320,91 @@ func TestGetMovingMarketsDropsFullySettledEvents(t *testing.T) {
 	if len(got.Markets) != 0 {
 		t.Errorf("a fully settled event survived: %+v", got.Markets)
 	}
+}
+
+// marketJSON builds a one-market event with the price fields written
+// explicitly, so a fixture can express the shapes Gamma actually sends —
+// including `"lastTradePrice": null`, which every other fixture in this
+// package omits. That omission is why SAG-33 survived a green suite: with
+// lastTradePrice set to a number that agrees with outcomePrices, a correct
+// and an incorrect implementation are indistinguishable.
+func marketJSON(t *testing.T, outcomePrices, lastTradePrice string) domain.Event {
+	t.Helper()
+
+	raw := fmt.Sprintf(`{
+		"id": "1",
+		"slug": "an-event",
+		"title": "an event",
+		"endDate": %q,
+		"volume24hr": 1234.5,
+		"markets": [{
+			"id": "m1",
+			"question": "will it happen?",
+			"outcomePrices": %s,
+			"lastTradePrice": %s,
+			"oneDayPriceChange": 0.2,
+			"oneHourPriceChange": 0.01
+		}]
+	}`, time.Now().UTC().Add(30*24*time.Hour).Format(time.RFC3339), outcomePrices, lastTradePrice)
+
+	var ev domain.Event
+	if err := json.Unmarshal([]byte(raw), &ev); err != nil {
+		t.Fatalf("fixture failed to decode: %v", err)
+	}
+	return ev
+}
+
+// SAG-33. Measured against live Gamma on 2026-09-28: of 1859 markets, 755
+// carry `"lastTradePrice": null` and only 37% of the rest agree with
+// outcomePrices to within 0.02.
+func TestMovingMarketFromPricesFromOutcomePrices(t *testing.T) {
+	now := time.Now().UTC()
+
+	t.Run("a null lastTradePrice must not delete the market from the feed", func(t *testing.T) {
+		// The invisible half of SAG-33. null decoded to 0.0, isTradeable(0.0)
+		// is false, so the market was skipped, `lead` stayed -1, and the whole
+		// event vanished — indistinguishable from an event with nothing moving.
+		ev := marketJSON(t, `"[\"0.315\", \"0.685\"]"`, `null`)
+
+		got, ok := movingMarketFrom(&ev, "Politics", now, 7)
+
+		if !ok {
+			t.Fatal("event was dropped from the feed entirely; it has a real price of 0.315")
+		}
+		if got.Probability != 0.315 {
+			t.Errorf("probability = %v, want 0.315", got.Probability)
+		}
+	})
+
+	t.Run("outcomePrices wins when lastTradePrice contradicts it", func(t *testing.T) {
+		// 26 live markets were off by 0.50 or more, in both directions.
+		ev := marketJSON(t, `"[\"1\", \"0\"]"`, `0.4`)
+
+		got, ok := movingMarketFrom(&ev, "Politics", now, 7)
+
+		if ok {
+			t.Fatalf("a market at 1.0 is settled and not tradeable, but it was offered at %v", got.Probability)
+		}
+	})
+
+	t.Run("a market whose real price is tradeable is still offered", func(t *testing.T) {
+		ev := marketJSON(t, `"[\"0.62\", \"0.38\"]"`, `0.63`)
+
+		got, ok := movingMarketFrom(&ev, "Politics", now, 7)
+
+		if !ok {
+			t.Fatal("tradeable market was dropped")
+		}
+		if got.Probability != 0.62 {
+			t.Errorf("probability = %v, want 0.62 from outcomePrices, not 0.63 from the last print", got.Probability)
+		}
+	})
+
+	t.Run("a market with no price anywhere is skipped, not treated as zero", func(t *testing.T) {
+		ev := marketJSON(t, `""`, `null`)
+
+		if _, ok := movingMarketFrom(&ev, "Politics", now, 7); ok {
+			t.Error("a market with no price was offered to the feed")
+		}
+	})
 }

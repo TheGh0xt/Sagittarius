@@ -237,3 +237,90 @@ func TestFirstClobTokenID(t *testing.T) {
 		t.Error("expected error for malformed token list")
 	}
 }
+
+// eventWithPrices builds a one-market event with the price fields written
+// explicitly. `testEvent` omits outcomePrices and sets a plain numeric
+// lastTradePrice, which is the one shape where reading the right field and
+// the wrong one give the same answer — and is why SAG-33 survived a fully
+// green suite.
+func eventWithPrices(t *testing.T, outcomePrices, lastTradePrice string) *domain.Event {
+	t.Helper()
+
+	raw := `{
+		"id": "1",
+		"title": "Will BTC hit 150k?",
+		"markets": [{
+			"question": "Will BTC hit $150k by Dec 2026?",
+			"conditionId": "0xcond",
+			"clobTokenIds": "[\"tok1\",\"tok2\"]",
+			"volumeNum": 300000,
+			"volume24hr": 90000,
+			"volume1wk": 70000,
+			"outcomePrices": ` + outcomePrices + `,
+			"lastTradePrice": ` + lastTradePrice + `
+		}]
+	}`
+
+	var ev domain.Event
+	if err := json.Unmarshal([]byte(raw), &ev); err != nil {
+		t.Fatalf("fixture failed to decode: %v", err)
+	}
+	return &ev
+}
+
+// SAG-33. The snapshot's probability is the single number the reasoning layer
+// leans on hardest, and it was sourced from the wrong Gamma field.
+func TestBuildMarketSnapshotProbabilitySource(t *testing.T) {
+	cases := []struct {
+		name           string
+		outcomePrices  string
+		lastTradePrice string
+		want           float64
+	}{
+		{
+			// 755 of 1859 live markets on 2026-09-28. This reported 0.0 — a
+			// market at 31.5% described to the analyst as impossible, in a
+			// report that still completed successfully and cost a credit.
+			name:           "a null last print does not make the market worth zero",
+			outcomePrices:  `"[\"0.315\", \"0.685\"]"`,
+			lastTradePrice: `null`,
+			want:           0.315,
+		},
+		{
+			name:           "the book beats a contradicting last print",
+			outcomePrices:  `"[\"1\", \"0\"]"`,
+			lastTradePrice: `0.4`,
+			want:           1,
+		},
+		{
+			name:           "and in the other direction",
+			outcomePrices:  `"[\"0\", \"1\"]"`,
+			lastTradePrice: `0.55`,
+			want:           0,
+		},
+		{
+			name:           "falls back to the last print when the book is absent",
+			outcomePrices:  `""`,
+			lastTradePrice: `0.58`,
+			want:           0.58,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := NewSignalService(
+				&stubEventProvider{event: eventWithPrices(t, tc.outcomePrices, tc.lastTradePrice)},
+				&stubMarketData{trades: whaleTrades, book: testBook},
+				slog.Default(),
+			)
+
+			report, err := svc.BuildMarketSnapshot(context.Background(), "will-btc-hit-150k")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got := report.Markets[0].Probability; got != tc.want {
+				t.Errorf("probability = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
